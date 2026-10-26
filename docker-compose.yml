@@ -1,43 +1,8 @@
-# =============================================================================
-# ROX full-stack compose — works locally AND on Dokploy (Compose feature).
-#
-# Structure (this file lives at the repo root, next to both project dirs):
-#   • web  = TanStack Start / Nitro `node-server` (SSR + static) — port 3000
-#   • api  = Spring Boot 3.4 / Java 21                            — port 8090
-#   • db   = Postgres 16 with a named volume for durability
-#
-# Local dev with docker:
-#   cp .env.example .env          # then edit secrets
-#   docker compose up --build     # web on :3000, api on :8090
-#
-# Dokploy setup (prod domains: web = https://rox.ma, api = https://api.rox.ma):
-#   1. DNS at your registrar — A records pointing at the Dokploy server IP:
-#        rox.ma         A  <server-ip>
-#        api.rox.ma     A  <server-ip>
-#        (optional) www A  <server-ip>   → then add a Traefik redirect to rox.ma
-#   2. Point the Compose service at this repo (file: docker-compose.yml).
-#   3. Set these in the service's Env tab:
-#        VITE_API_URL          https://api.rox.ma              (baked into web image at build)
-#        CORS_ALLOWED_ORIGINS  https://rox.ma,https://www.rox.ma
-#        JWT_SECRET            <64 random bytes base64>        (openssl rand -base64 64)
-#        POSTGRES_PASSWORD     <strong-password>
-#        ROX_SEED_ENABLED      true  (first deploy only) then flip to false
-#   4. Add two Traefik domains in the Dokploy UI (Let's Encrypt auto-TLS):
-#        https://rox.ma       → service=web  port=3000
-#        https://api.rox.ma   → service=api  port=8090
-#   5. Rebuild web whenever VITE_API_URL changes — it's a build ARG, not a
-#      runtime env. In Dokploy: "Deploy / Recompose" with rebuild enabled.
-#   6. (Optional) To skip publishing host ports behind Traefik, drop a
-#      docker-compose.override.yml with:
-#        services: { api: { ports: !override [] }, web: { ports: !override [] } }
-# =============================================================================
-
 name: rox
 
 services:
   db:
     image: postgres:16-alpine
-    container_name: rox-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-rox_api}
@@ -52,16 +17,12 @@ services:
       retries: 10
       start_period: 15s
     networks: [roxnet]
-    # Internal-only by default (api reaches it via `db:5432` on `roxnet`).
-    # To debug from the host, drop a docker-compose.override.yml with:
-    #   services: { db: { ports: ["5432:5432"] } }
 
   api:
     build:
       context: ./rox-api
       dockerfile: Dockerfile
     image: rox-api:latest
-    container_name: rox-api
     restart: unless-stopped
     depends_on:
       db:
@@ -76,62 +37,42 @@ services:
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://rox.ma,https://www.rox.ma,http://localhost:8080,http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:3000}
       ROX_SEED_ENABLED: ${ROX_SEED_ENABLED:-true}
-      ROX_SEED_ADMIN_EMAIL: ${ROX_SEED_ADMIN_EMAIL:-admin@rox.ma}
-      ROX_SEED_ADMIN_PASSWORD: ${ROX_SEED_ADMIN_PASSWORD:-rox-admin}
+      ROX_SEED_ADMIN_EMAIL: ${ROX_SEED_ADMIN_EMAIL:?set ROX_SEED_ADMIN_EMAIL or disable ROX_SEED_ENABLED}
+      ROX_SEED_ADMIN_PASSWORD: ${ROX_SEED_ADMIN_PASSWORD:?set ROX_SEED_ADMIN_PASSWORD or disable ROX_SEED_ENABLED}
     healthcheck:
-      # /portfolio is a permitAll GET that returns 200 (see SecurityConfig) —
-      # cheap liveness probe. Avoid /v3/api-docs (SpringDoc currently 500s on
-      # this build) and `/` (401 via the security filter).
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${API_PORT:-8090}/portfolio"]
       interval: 20s
       timeout: 5s
       retries: 5
       start_period: 40s
     networks: [roxnet]
-    # Host publishing is on so local `docker compose up` works out of the box.
-    # On Dokploy with Traefik this is harmless (the proxy uses the container
-    # network), but if you'd rather not publish, add a docker-compose.override.yml:
-    #   services: { api: { ports: !override [] }, web: { ports: !override [] } }
-    ports:
-      - "${API_HOST_PORT:-8090}:${API_PORT:-8090}"
+    expose:
+      - "8090"
 
   web:
     build:
       context: ./rox-digital-agency
       dockerfile: Dockerfile
       args:
-        # Baked into the SSR + browser bundle at build time (Vite inlines
-        # import.meta.env.*). Two choices:
-        #   • Local Docker:  http://api:8090  → SSR works out of the box.
-        #     For browser calls to also succeed, add `127.0.0.1 api` to your
-        #     host's /etc/hosts (api is published on 8090 → resolves locally).
-        #   • Production:    https://api.<your-domain>  (public, browser + SSR
-        #     both reach it directly). Set this in the Dokploy Env tab.
-        VITE_API_URL: ${VITE_API_URL:-http://api:8090}
+        VITE_API_URL: ${VITE_API_URL:-https://api.rox.ma}
     image: rox-web:latest
-    container_name: rox-web
     restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
     environment:
-      # Runtime env only affects SSR-side fetches that read process.env at
-      # request time. Vite-inlined `import.meta.env.VITE_API_URL` was baked
-      # at build via the ARG above; browser JS uses that baked value.
       NODE_ENV: production
       PORT: ${WEB_PORT:-3000}
       HOST: 0.0.0.0
     healthcheck:
-      # /favicon.ico is a static asset — always 200 while the SSR server is
-      # alive, without depending on backend reachability from the container.
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${WEB_PORT:-3000}/favicon.ico"]
       interval: 20s
       timeout: 5s
       retries: 3
       start_period: 20s
     networks: [roxnet]
-    ports:
-      - "${WEB_HOST_PORT:-3000}:${WEB_PORT:-3000}"
+    expose:
+      - "3000"
 
 volumes:
   rox-pgdata:

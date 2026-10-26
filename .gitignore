@@ -7,11 +7,13 @@
 # Secrets — never commit real env files. `.env.example` is the committed template.
 .env
 .env.*
-!.env.example
+# !.env.example
 
 # Local compose overrides (port tweaks, untracked host bindings).
+# The example is committed as a template; the actual override stays ignored.
 docker-compose.override.yml
 docker-compose.override.*.yml
+# !docker-compose.override.example.yml
 
 # OS junk
 .DS_Store
