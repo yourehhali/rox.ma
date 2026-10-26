@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Seeds the DB on first boot so the API can serve the same content the frontend
- *  prototype shipped with (8 services, 3 plans, FAQ groups, site info, admin login).
+ *  prototype shipped with (10 services, 3 plans, FAQ groups, site info, admin login).
  *  Idempotent — each seed step is skipped if its target table already has rows. */
 @Component
 @ConditionalOnProperty(name = "rox.seed.enabled", havingValue = "true", matchIfMissing = true)
@@ -233,6 +233,46 @@ public class DataSeeder implements CommandLineRunner {
                 "Support humain sous 24 h ouvrées"),
         List.<String[]>of(new String[]{"Options", "VPS managé, cloud dédié, équilibrage de charge pour les forts volumes."}),
         "À partir de", "900 MAD / mois");
+
+    addService("conseil-audit", "Conseil & audit digital",
+        "Roadmap, veille, ateliers de cadrage",
+        "Compass",
+        "Le bon diagnostic avant la bonne décision.",
+        "services",
+        "Conseil",
+        "Un diagnostic clair, une roadmap qui tient.",
+        "Avant d'investir dans un produit digital, encore faut-il savoir quoi construire, pour qui et pourquoi. Nous auditons l'existant, challengeons les hypothèses et livrons une roadmap priorisée que vos équipes peuvent exécuter — avec ou sans nous.",
+        "Ce que couvre une mission de conseil",
+        "Du workshop de cadrage à l'audit technique complet, en passant par la veille métier.",
+        List.of("Ateliers de cadrage avec les parties prenantes",
+                "Audit UX, SEO et technique de l'existant",
+                "Benchmark concurrentiel et analyse marché",
+                "Roadmap produit priorisée avec estimations",
+                "Veille technologique et choix d'architecture",
+                "Documentation et transfert de compétences"),
+        List.of(new String[]{"Formats courts", "Audit flash en 5 jours — idéal avant une refonte ou un pitch investisseurs."},
+                new String[]{"Accompagnement long", "Fractional CTO / Product Advisor : une demi-journée par semaine sur la durée."}),
+        "À partir de", "2 500 MAD / mission");
+
+    addService("automatisation-integrations", "Automatisation & intégrations",
+        "API, workflows, IA appliquée",
+        "Workflow",
+        "Moins de tâches manuelles, plus de marge.",
+        "services",
+        "Automatisation",
+        "Connectez vos outils, supprimez les tâches répétitives.",
+        "CRM, facturation, stocks, e-mailing, IA générative : nous relions vos systèmes entre eux et automatisons les workflows qui mangent du temps à vos équipes — sans réécrire l'existant.",
+        "Ce que nous automatisons",
+        "Du simple pont API au copilote IA branché sur vos données.",
+        List.of("Intégrations API entre CRM, ERP et outils métier",
+                "Workflows no-code (n8n, Make, Zapier) et scripts custom",
+                "Connecteurs sur-mesure pour outils marocains TPE/PME",
+                "Pipelines de données et tableaux de bord temps réel",
+                "Agents IA appliqués : support, qualification, rédaction",
+                "Sécurisation : secrets, logs, monitoring des échecs"),
+        List.of(new String[]{"Exemples concrets", "Sync HubSpot ↔ facturation, réponses support enrichies par RAG, alertes stocks en temps réel."},
+                new String[]{"Stack", "n8n auto-hébergé, Make, Node.js, Python, OpenAI / Anthropic / modèles ouverts."}),
+        "À partir de", "3 500 MAD / intégration");
   }
 
   private void addService(String slug, String name, String tag, String icon, String shortDesc, String faqKey,

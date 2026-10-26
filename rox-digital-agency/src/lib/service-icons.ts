@@ -1,5 +1,6 @@
 import {
   Camera,
+  Compass,
   Cpu,
   Globe,
   Figma,
@@ -13,6 +14,7 @@ import {
   Server,
   ShoppingCart,
   Star,
+  Workflow,
   UtensilsCrossed,
   Wrench,
   type LucideIcon,
@@ -37,6 +39,8 @@ export const SERVICE_ICONS: Record<string, LucideIcon> = {
   Camera,
   UtensilsCrossed,
   Star,
+  Compass,
+  Workflow,
 };
 
 export const ICON_OPTIONS = Object.keys(SERVICE_ICONS);
