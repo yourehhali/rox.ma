@@ -26,6 +26,7 @@ public class Order {
   @Column(nullable = false) private String deadline;
   @Column(nullable = false) private String phase;
   @Column(nullable = false) private String status;
+  @Column(name = "stage", nullable = false) private String stage = "LEAD";
   @Column(name = "created_at", nullable = false) private OffsetDateTime createdAt;
 
   @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)

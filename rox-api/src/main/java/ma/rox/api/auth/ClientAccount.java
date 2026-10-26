@@ -15,4 +15,7 @@ public class ClientAccount {
   @Column(nullable = false, unique = true) private String email;
   @Column(name = "password_hash", nullable = false) private String passwordHash;
   @Column(name = "created_at", nullable = false) private OffsetDateTime createdAt;
+  @Column(name = "phone") private String phone;
+  @Column(name = "verified", nullable = false) private boolean verified = false;
+  @Column(name = "verified_at") private OffsetDateTime verifiedAt;
 }

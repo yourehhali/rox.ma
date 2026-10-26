@@ -5,6 +5,7 @@
 import {
   Briefcase,
   Images,
+  KanbanSquare,
   Layers,
   LayoutDashboard,
   type LucideIcon,
@@ -16,11 +17,19 @@ import { type ChartConfig } from "@/components/ui/chart";
 import { PHASES, type Order, type OrderPhase } from "@/lib/client-store";
 
 export type AdminSection =
-  "overview" | "orders" | "clients" | "messages" | "portfolio" | "content" | "settings";
+  | "overview"
+  | "orders"
+  | "board"
+  | "clients"
+  | "messages"
+  | "portfolio"
+  | "content"
+  | "settings";
 
 export const navItems: { id: AdminSection; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Vue d'ensemble", icon: LayoutDashboard },
   { id: "orders", label: "Commandes", icon: Briefcase },
+  { id: "board", label: "Tableau Kanban", icon: KanbanSquare },
   { id: "clients", label: "Clients", icon: Users },
   { id: "messages", label: "Messagerie", icon: MessageSquare },
   { id: "portfolio", label: "Réalisations", icon: Images },

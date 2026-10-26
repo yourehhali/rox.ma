@@ -37,12 +37,22 @@ export const PHASES: { id: OrderPhase; label: string }[] = [
   { id: "lancement", label: "Lancement & suivi" },
 ];
 
+/**
+ * Fallback service names used by the onboarding wizard until `useSiteContent()`
+ * resolves. The canonical list lives in the backend (`service_content` table).
+ * Kept in sync with `DataSeeder.addService(...)` calls.
+ */
 export const SERVICES = [
-  "Création site web",
-  "SEO local",
-  "Figma",
-  "WordPress / Elementor",
-  "Hébergement",
+  "Développement web",
+  "Applications & systèmes de gestion",
+  "Design UI/UX",
+  "Applications mobiles",
+  "Objets connectés & IoT",
+  "E-commerce",
+  "SEO & acquisition locale",
+  "Hébergement & maintenance",
+  "Conseil & audit digital",
+  "Automatisation & intégrations",
 ] as const;
 
 export function phaseIndex(phase: OrderPhase): number {

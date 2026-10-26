@@ -13,10 +13,12 @@ public class AuthController {
 
   private final AuthService svc;
   private final CurrentUser me;
+  private final EmailVerificationService otp;
 
-  public AuthController(AuthService svc, CurrentUser me) {
+  public AuthController(AuthService svc, CurrentUser me, EmailVerificationService otp) {
     this.svc = svc;
     this.me = me;
+    this.otp = otp;
   }
 
   @PostMapping("/client/signup")
@@ -66,5 +68,17 @@ public class AuthController {
   @GetMapping("/admin/me")
   public AuthDtos.AdminUserDto adminMe() {
     return svc.adminMe(me.requireAdmin().id());
+  }
+
+  @PostMapping("/client/verify")
+  public ResponseEntity<Void> clientVerify(@Valid @RequestBody AuthDtos.VerifyOtpRequest req) {
+    otp.verify(req.email(), req.code());
+    return ResponseEntity.noContent().build();
+  }
+
+  @PostMapping("/client/resend-otp")
+  public ResponseEntity<Void> clientResendOtp(@Valid @RequestBody AuthDtos.ResendOtpRequest req) {
+    otp.issueOtp(req.email(), EmailVerificationService.PURPOSE_SIGNUP);
+    return ResponseEntity.accepted().build();
   }
 }

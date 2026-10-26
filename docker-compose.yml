@@ -39,13 +39,29 @@ services:
       ROX_SEED_ENABLED: ${ROX_SEED_ENABLED:-true}
       ROX_SEED_ADMIN_EMAIL: ${ROX_SEED_ADMIN_EMAIL:?set ROX_SEED_ADMIN_EMAIL or disable ROX_SEED_ENABLED}
       ROX_SEED_ADMIN_PASSWORD: ${ROX_SEED_ADMIN_PASSWORD:?set ROX_SEED_ADMIN_PASSWORD or disable ROX_SEED_ENABLED}
+      # SMTP for email OTP (Phase 3). Leave SMTP_HOST empty to keep mail disabled
+      # and skip sends — the API still boots and signup still works.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-ROX Agency <no-reply@rox.ma>}
+      # Feature flags
+      ROX_VERIFICATION_REQUIRED: ${ROX_VERIFICATION_REQUIRED:-false}
+      ROX_VERIFICATION_GRACE_HOURS: ${ROX_VERIFICATION_GRACE_HOURS:-24}
+      ROX_RATE_LIMIT_ENABLED: ${ROX_RATE_LIMIT_ENABLED:-true}
+      ROX_RATE_LIMIT_LOGIN_PER_MIN: ${ROX_RATE_LIMIT_LOGIN_PER_MIN:-5}
+      ROX_RATE_LIMIT_SIGNUP_PER_HOUR: ${ROX_RATE_LIMIT_SIGNUP_PER_HOUR:-2}
+      ROX_RATE_LIMIT_CONTACT_PER_MIN: ${ROX_RATE_LIMIT_CONTACT_PER_MIN:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${API_PORT:-8090}/portfolio"]
       interval: 20s
       timeout: 5s
       retries: 5
       start_period: 40s
-    networks: [roxnet]
+    networks: [roxnet, dokploy-network]
+    # Internal-only. Traefik reaches `api:8090` via dokploy-network; the roxnet
+    # bridge is only used for internal web<->api/db traffic. No host ports.
     expose:
       - "8090"
 
@@ -70,7 +86,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    networks: [roxnet]
+    networks: [roxnet, dokploy-network]
+    # Internal-only. Traefik reaches `web:3000` via dokploy-network; the roxnet
+    # bridge is only used for internal web<->api/db traffic. No host ports.
     expose:
       - "3000"
 
@@ -81,3 +99,8 @@ volumes:
 networks:
   roxnet:
     driver: bridge
+  # External network created by Dokploy — Traefik is attached to it and only
+  # watches containers on this network (providers.docker.network in traefik.yml).
+  # Verify the exact name on your server with:  docker network ls | grep dokploy
+  dokploy-network:
+    external: true

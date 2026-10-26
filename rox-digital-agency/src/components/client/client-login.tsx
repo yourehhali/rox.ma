@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, Eye, EyeOff, Lock, Mail, Phone, User } from "lucide-react";
 import { Logo } from "@/components/rox/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,15 +9,20 @@ import { ThemeToggle } from "@/components/rox/theme-toggle";
 
 type AuthResult = { ok: boolean; error?: string };
 
+const PHONE_RE = /^\+?[0-9]{8,15}$/;
+const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,200}$/;
+
 type ClientLoginProps = {
   onLogin: (email: string, password: string) => Promise<AuthResult>;
-  onSignup: (name: string, email: string, password: string) => Promise<AuthResult>;
+  onSignup: (name: string, email: string, phone: string, password: string) => Promise<AuthResult>;
 };
 
 export function ClientLogin({ onLogin, onSignup }: ClientLoginProps) {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<"login" | "signup">("signup");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,9 +30,32 @@ export function ClientLogin({ onLogin, onSignup }: ClientLoginProps) {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (mode === "signup") {
+      const p = phone.trim();
+      if (!PHONE_RE.test(p)) {
+        setError("Téléphone invalide (8 à 15 chiffres, « + » optionnel).");
+        return;
+      }
+      if (!PASSWORD_RE.test(password)) {
+        setError("Mot de passe trop faible : min. 8 caractères avec majuscule, minuscule et chiffre.");
+        return;
+      }
+    }
     const res =
-      mode === "login" ? await onLogin(email, password) : await onSignup(name, email, password);
-    if (!res.ok) setError(res.error ?? "Une erreur est survenue.");
+      mode === "login"
+        ? await onLogin(email, password)
+        : await onSignup(name, email, phone.trim(), password);
+    if (!res.ok) {
+      setError(res.error ?? "Une erreur est survenue.");
+      return;
+    }
+    if (mode === "signup") {
+      // Hand off the freshly-created email to /verify-email so the OTP field is pre-seeded.
+      if (typeof window !== "undefined") {
+        (window as unknown as { __rox_last_email__?: string }).__rox_last_email__ = email;
+      }
+      navigate({ to: "/verify-email" });
+    }
   };
 
   return (
@@ -124,6 +152,33 @@ export function ClientLogin({ onLogin, onSignup }: ClientLoginProps) {
                 />
               </div>
             </div>
+
+            {mode === "signup" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="client-phone">Téléphone</Label>
+                <div className="relative">
+                  <Phone
+                    size={15}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <Input
+                    id="client-phone"
+                    type="tel"
+                    autoComplete="tel"
+                    inputMode="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="+212 6 12 34 56 78"
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="client-password">Mot de passe</Label>

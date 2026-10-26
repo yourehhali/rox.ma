@@ -48,4 +48,13 @@ export const keys = {
     client: () => ["me", "client"] as const,
     admin: () => ["me", "admin"] as const,
   },
+  notifications: {
+    all: ["notifications"] as const,
+    list: (role: "client" | "admin") => ["notifications", "list", { role }] as const,
+    unread: (role: "client" | "admin") => ["notifications", "unread", { role }] as const,
+  },
+  board: {
+    all: ["board"] as const,
+    snapshot: () => ["board", "snapshot"] as const,
+  },
 } as const;

@@ -11,7 +11,9 @@ import ma.rox.api.auth.AuthService;
 import ma.rox.api.auth.ClientAccount;
 import ma.rox.api.auth.ClientRepo;
 import ma.rox.api.error.ApiException;
+import ma.rox.api.events.Events;
 import ma.rox.api.portal.PortalDtos.*;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,21 +22,24 @@ public class PortalService {
 
   public static final List<String> PHASES = List.of("cadrage", "maquette", "developpement", "lancement");
   private static final List<String> TASK_LABELS = List.of(
-      "Cadrage : brief + audit validés",
-      "Maquette : wireframes + UI validés",
-      "Développement : intégration + contenu",
+      "Cadrage : brief + audit valid\u00e9s",
+      "Maquette : wireframes + UI valid\u00e9s",
+      "D\u00e9veloppement : int\u00e9gration + contenu",
       "Lancement : mise en ligne + suivi");
 
   private final OrderRepo orders;
   private final MessageRepo messages;
   private final BookingRepo bookings;
   private final ClientRepo clients;
+  private final ApplicationEventPublisher events;
 
-  public PortalService(OrderRepo orders, MessageRepo messages, BookingRepo bookings, ClientRepo clients) {
+  public PortalService(OrderRepo orders, MessageRepo messages, BookingRepo bookings, ClientRepo clients,
+                       ApplicationEventPublisher events) {
     this.orders = orders;
     this.messages = messages;
     this.bookings = bookings;
     this.clients = clients;
+    this.events = events;
   }
 
   // ---------- Read / mapping ----------
@@ -103,9 +108,10 @@ public class PortalService {
     o.setService(input.service().trim());
     o.setDescription(input.description() == null ? "" : input.description());
     o.setBudget(input.budget() == null ? "" : input.budget());
-    o.setDeadline(input.deadline() == null ? "" : input.deadline());
+    o.setDeadline(normalizeDeadline(input.deadline()));
     o.setPhase("cadrage");
     o.setStatus("active");
+    o.setStage("LEAD");
     OffsetDateTime now = nowUtc();
     o.setCreatedAt(now);
 
@@ -132,6 +138,7 @@ public class PortalService {
     }
     addEvent(o, "Brief reçu", now);
     orders.save(o);
+    events.publishEvent(new Events.OrderCreated(o.getId(), c.getId(), o.getTitle(), o.getService()));
     return o;
   }
 
@@ -146,7 +153,9 @@ public class PortalService {
     }
     o.setPhase(nextPhase);
     addEvent(o, "Phase → " + nextPhase, nowUtc());
-    return orders.save(o);
+    Order saved = orders.save(o);
+    events.publishEvent(new Events.PhaseAdvanced(saved.getId(), saved.getClient().getId(), nextPhase));
+    return saved;
   }
 
   @Transactional
@@ -157,7 +166,9 @@ public class PortalService {
     Order o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Commande"));
     o.setStatus(status);
     addEvent(o, "Statut → " + status, nowUtc());
-    return orders.save(o);
+    Order saved = orders.save(o);
+    events.publishEvent(new Events.StatusChanged(saved.getId(), saved.getClient().getId(), status));
+    return saved;
   }
 
   @Transactional
@@ -186,6 +197,7 @@ public class PortalService {
     r.setStatus("ouvert");
     o.getRequests().add(r);
     orders.save(o);
+    events.publishEvent(new Events.ChangeRequestSubmitted(r.getId(), o.getId(), o.getClient().getId(), type));
     return r;
   }
 
@@ -197,6 +209,7 @@ public class PortalService {
     r.setStatus("pris en compte");
     addEvent(o, "Demande prise en compte", nowUtc());
     orders.save(o);
+    events.publishEvent(new Events.ChangeRequestHandled(r.getId(), o.getId(), o.getClient().getId()));
     return r;
   }
 
@@ -212,7 +225,11 @@ public class PortalService {
     m.setAt(nowUtc());
     m.setSender(sender);
     m.setText(text);
-    return messages.save(m);
+    Message saved = messages.save(m);
+    String preview = text == null ? "" : (text.length() > 200 ? text.substring(0, 197) + "…" : text);
+    String orderIdStr = saved.getOrder() == null ? null : saved.getOrder().getId();
+    events.publishEvent(new Events.MessagePosted(saved.getId(), orderIdStr, c.getId(), sender, preview));
+    return saved;
   }
 
   @Transactional
@@ -221,11 +238,21 @@ public class PortalService {
     CallBooking b = new CallBooking();
     b.setId(prefixed("b"));
     b.setClient(c);
+    LocalDate d;
     try {
-      b.setDate(LocalDate.parse(date));
+      d = LocalDate.parse(date);
     } catch (java.time.format.DateTimeParseException ex) {
       throw ApiException.badRequest("Date invalide (attendu yyyy-MM-dd).",
           List.of(new ma.rox.api.error.ApiError.FieldIssue("date", "format")));
+    }
+    LocalDate today = LocalDate.now();
+    if (d.isBefore(today)) {
+      throw ApiException.badRequest("La date doit être aujourd'hui ou dans le futur.",
+          List.of(new ma.rox.api.error.ApiError.FieldIssue("date", "not_future")));
+    }
+    if (d.isAfter(today.plusDays(90))) {
+      throw ApiException.badRequest("La date ne peut pas dépasser 90 jours.",
+          List.of(new ma.rox.api.error.ApiError.FieldIssue("date", "out_of_range")));
     }
     try {
       String[] parts = time.split(":");
@@ -234,16 +261,23 @@ public class PortalService {
       throw ApiException.badRequest("Heure invalide (attendu HH:mm).",
           List.of(new ma.rox.api.error.ApiError.FieldIssue("time", "format")));
     }
+    b.setDate(d);
     b.setSubject(subject == null ? "" : subject);
     b.setStatus("demandé");
-    return bookings.save(b);
+    CallBooking saved = bookings.save(b);
+    events.publishEvent(new Events.BookingRequested(saved.getId(), c.getId(), date, time));
+    return saved;
   }
 
   @Transactional
   public CallBooking confirmBooking(String bookingId) {
     CallBooking b = bookings.findById(bookingId).orElseThrow(() -> ApiException.notFound("Créneau"));
     b.setStatus("confirmé");
-    return bookings.save(b);
+    CallBooking saved = bookings.save(b);
+    events.publishEvent(new Events.BookingConfirmed(saved.getId(), saved.getClient().getId(),
+        saved.getDate().toString(),
+        String.format("%02d:%02d", saved.getTime().getHour(), saved.getTime().getMinute())));
+    return saved;
   }
 
   // ---------- Lookups used by controllers ----------
@@ -285,6 +319,23 @@ public class PortalService {
   }
 
   // ---------- Helpers ----------
+
+  /** Validate the free-form deadline string; today or future when it parses as yyyy-MM-dd; other formats kept as-is. */
+  private String normalizeDeadline(String raw) {
+    if (raw == null) return "";
+    String t = raw.trim();
+    if (t.isEmpty()) return "";
+    try {
+      LocalDate d = LocalDate.parse(t);
+      if (d.isBefore(LocalDate.now())) {
+        throw ApiException.badRequest("La date limite doit être aujourd'hui ou dans le futur.",
+            List.of(new ma.rox.api.error.ApiError.FieldIssue("deadline", "not_future")));
+      }
+    } catch (java.time.format.DateTimeParseException ignored) {
+      // Non-ISO deadline strings are preserved verbatim (existing clients may use free-form text).
+    }
+    return t;
+  }
 
   private void addEvent(Order o, String note, OffsetDateTime at) {
     OrderEvent e = new OrderEvent();

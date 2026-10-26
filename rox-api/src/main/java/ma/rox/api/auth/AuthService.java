@@ -2,11 +2,15 @@ package ma.rox.api.auth;
 
 import static ma.rox.api.common.IdGen.*;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import ma.rox.api.error.ApiException;
+import ma.rox.api.error.ErrorCode;
 import ma.rox.api.security.JwtService;
 import ma.rox.api.security.RoxPrincipal;
 import ma.rox.api.security.Role;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,14 +23,22 @@ public class AuthService {
   private final RefreshTokenRepo tokens;
   private final PasswordEncoder encoder;
   private final JwtService jwt;
+  private final EmailVerificationService otp;
+  private final boolean verificationRequired;
+  private final Duration gracePeriod;
 
   public AuthService(ClientRepo clients, AdminRepo admins, RefreshTokenRepo tokens,
-                     PasswordEncoder encoder, JwtService jwt) {
+                     PasswordEncoder encoder, JwtService jwt, EmailVerificationService otp,
+                     @Value("${rox.verification.required:false}") boolean verificationRequired,
+                     @Value("${rox.verification.grace-hours:24}") long graceHours) {
     this.clients = clients;
     this.admins = admins;
     this.tokens = tokens;
     this.encoder = encoder;
     this.jwt = jwt;
+    this.otp = otp;
+    this.verificationRequired = verificationRequired;
+    this.gracePeriod = Duration.ofHours(graceHours);
   }
 
   @Transactional
@@ -38,9 +50,14 @@ public class AuthService {
     c.setId(prefixed("c"));
     c.setName(req.name().trim());
     c.setEmail(req.email().trim().toLowerCase());
+    c.setPhone(normalizePhone(req.phone()));
     c.setPasswordHash(encoder.encode(req.password()));
     c.setCreatedAt(nowUtc());
+    c.setVerified(false);
     clients.save(c);
+
+    // Best-effort OTP dispatch so signup never fails on SMTP/DB hiccups.
+    otp.issueForSignup(c.getEmail());
 
     RoxPrincipal p = new RoxPrincipal(c.getId(), c.getEmail(), Role.CLIENT);
     return new AuthDtos.AuthSessionDto(
@@ -54,6 +71,14 @@ public class AuthService {
         .orElseThrow(() -> ApiException.unauthorized("Email ou mot de passe incorrect."));
     if (!encoder.matches(req.password(), c.getPasswordHash())) {
       throw ApiException.unauthorized("Email ou mot de passe incorrect.");
+    }
+    // Grace period lets existing accounts continue while verification is rolled out.
+    if (verificationRequired && !c.isVerified()) {
+      OffsetDateTime age = c.getCreatedAt() == null ? OffsetDateTime.now() : c.getCreatedAt();
+      if (OffsetDateTime.now().minus(gracePeriod).isAfter(age)) {
+        throw new ApiException(403, ErrorCode.forbidden,
+            "Veuillez vérifier votre email avant de continuer.");
+      }
     }
     RoxPrincipal p = new RoxPrincipal(c.getId(), c.getEmail(), Role.CLIENT);
     return new AuthDtos.AuthSessionDto(
@@ -156,10 +181,22 @@ public class AuthService {
   }
 
   public static AuthDtos.ClientUserDto toClientDto(ClientAccount c) {
-    return new AuthDtos.ClientUserDto(c.getId(), c.getName(), c.getEmail(), iso(c.getCreatedAt()));
+    return new AuthDtos.ClientUserDto(
+        c.getId(), c.getName(), c.getEmail(), c.getPhone(),
+        c.isVerified(), iso(c.getCreatedAt()));
   }
 
   public static AuthDtos.AdminUserDto toAdminDto(AdminAccount a) {
     return new AuthDtos.AdminUserDto(a.getId(), a.getEmail(), a.getName(), iso(a.getCreatedAt()));
+  }
+
+  /** Strip spaces / dashes / parens; keep leading +. Empty string → null. */
+  private static String normalizePhone(String raw) {
+    if (raw == null) return null;
+    String t = raw.trim();
+    if (t.isEmpty()) return null;
+    boolean plus = t.startsWith("+");
+    String digits = t.replaceAll("[^0-9]", "");
+    return plus ? "+" + digits : digits;
   }
 }

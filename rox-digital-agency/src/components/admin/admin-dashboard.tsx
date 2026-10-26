@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, Menu, Search, X } from "lucide-react";
+import { Menu, Search, X } from "lucide-react";
 import { AdminBrand, AdminSidebar } from "@/components/admin/admin-sidebar";
 import { type AdminSection } from "@/components/admin/data";
 import { OverviewPanel } from "@/components/admin/overview-panel";
@@ -8,8 +8,11 @@ import { ClientsPanel } from "@/components/admin/clients-panel";
 import { MessagesPanel } from "@/components/admin/messages-panel";
 import { PortfolioPanel } from "@/components/admin/portfolio-panel";
 import { ContentPanel } from "@/components/admin/content-panel";
+import { BoardPanel } from "@/components/admin/board-panel";
+import { NotificationBell } from "@/components/rox/notification-bell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAdminPortal } from "@/hooks/use-admin-portal";
+import { useNotificationSocket } from "@/hooks/use-notification-socket";
 
 const sectionMeta: Record<AdminSection, { title: string; description: string }> = {
   overview: {
@@ -19,6 +22,10 @@ const sectionMeta: Record<AdminSection, { title: string; description: string }> 
   orders: {
     title: "Commandes",
     description: "Suivez et gérez les commandes créées depuis l'espace client.",
+  },
+  board: {
+    title: "Tableau Kanban",
+    description: "Vue globale des commandes par étape — glissez une carte pour la faire avancer.",
   },
   clients: { title: "Clients", description: "Comptes enregistrés et leur activité." },
   messages: {
@@ -42,6 +49,9 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [active, setActive] = useState<AdminSection>("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [focusClientId, setFocusClientId] = useState<string | null>(null);
+
+  // Realtime notification delivery for the bell + cache freshness across panels.
+  useNotificationSocket("admin");
 
   const handleSelect = (section: AdminSection) => {
     setActive(section);
@@ -92,7 +102,7 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar onOpenMenu={() => setMobileOpen(true)} />
+        <Topbar onOpenMenu={() => setMobileOpen(true)} onOpenOrder={() => setActive("orders")} />
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -108,6 +118,7 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
           {active === "overview" && <OverviewPanel portal={portal} onSelect={setActive} />}
           {active === "orders" && <OrdersPanel portal={portal} />}
+          {active === "board" && <BoardPanel />}
           {active === "clients" && (
             <ClientsPanel portal={portal} onOpenMessages={openMessagesFor} />
           )}
@@ -127,7 +138,7 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
+function Topbar({ onOpenMenu, onOpenOrder }: { onOpenMenu: () => void; onOpenOrder: () => void }) {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur sm:px-6">
       <button
@@ -157,14 +168,7 @@ function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
         />
       </div>
 
-      <button
-        type="button"
-        aria-label="Notifications"
-        className="relative ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:text-foreground sm:ml-0"
-      >
-        <Bell size={17} />
-        <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
-      </button>
+      <NotificationBell role="admin" onOpenOrder={onOpenOrder} className="ml-auto sm:ml-0" />
 
       <div className="flex items-center gap-2.5 rounded-lg border border-border px-2 py-1.5">
         <span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">

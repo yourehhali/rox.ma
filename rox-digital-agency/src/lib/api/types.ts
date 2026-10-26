@@ -9,6 +9,8 @@ export type ClientUser = {
   id: string;
   name: string;
   email: string;
+  phone?: string;
+  verified?: boolean;
   createdAt?: string;
 };
 
@@ -33,6 +35,7 @@ export type AdminSession = AuthSession<AdminUser>;
 export type ClientSignupInput = {
   name: string;
   email: string;
+  phone: string;
   password: string;
 };
 
@@ -109,6 +112,7 @@ export type NewOrderInput = {
   description: string;
   budget: string;
   deadline: string;
+  phone?: string;
   pastServices: Omit<ServiceHistoryItem, "id">[];
 };
 
@@ -273,6 +277,27 @@ export type TrafficPoint = {
 };
 
 export type TrafficRange = "6M" | "12M" | "YTD";
+
+// --- Notifications ----------------------------------------------------------
+
+export type NotificationKind =
+  | "message"
+  | "booking"
+  | "order"
+  | "phase"
+  | "stage"
+  | "change_request"
+  | "otp_sent";
+
+export type AppNotification = {
+  id: string;
+  kind: NotificationKind | string;
+  orderId: string | null;
+  title: string;
+  body: string;
+  readAt: string | null;
+  createdAt: string;
+};
 
 // --- Error envelope ---------------------------------------------------------
 

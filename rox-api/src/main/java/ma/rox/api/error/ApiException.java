@@ -37,4 +37,7 @@ public class ApiException extends RuntimeException {
   public static ApiException badRequest(String message, List<ApiError.FieldIssue> details) {
     return new ApiException(400, ErrorCode.validation_error, message, details);
   }
+  public static ApiException badRequest(String message) {
+    return new ApiException(400, ErrorCode.validation_error, message, List.of());
+  }
 }

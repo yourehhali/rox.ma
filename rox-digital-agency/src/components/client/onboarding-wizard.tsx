@@ -1,12 +1,12 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useClient } from "@/components/client/client-context";
 import { SERVICES, uid, type ServiceHistoryItem } from "@/lib/client-store";
+import { useSiteContent } from "@/hooks/use-site-content";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
@@ -26,6 +26,10 @@ const BUDGETS = [
   "À définir",
 ];
 
+/** Loose E.164-ish phone check mirrored on the backend. */
+const PHONE_RE = /^\+?[0-9]{8,15}$/;
+const OTHER_PILL = "__other__";
+
 type WizardProps = {
   onComplete: () => void;
   onCancel?: (() => void) | undefined;
@@ -33,11 +37,14 @@ type WizardProps = {
 
 export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
   const { createOrder } = useClient();
+  const content = useSiteContent();
   const [step, setStep] = useState(0);
 
   const [activity, setActivity] = useState("");
   const [goal, setGoal] = useState("");
   const [services, setServices] = useState<string[]>([]);
+  const [otherOpen, setOtherOpen] = useState(false);
+  const [otherText, setOtherText] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState<string>(BUDGETS[0] ?? "À définir");
@@ -47,8 +54,35 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
   const [city, setCity] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // Prefer published services from the API; fall back to the static catalogue
+  // while the site-content query is still loading.
+  const catalogue = useMemo(() => {
+    const fromApi = content.services.filter((s) => s.published).map((s) => s.name);
+    return fromApi.length > 0 ? fromApi : (SERVICES as unknown as readonly string[]);
+  }, [content.services]);
+
   const toggleService = (s: string) => {
     setServices((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+    setError(null);
+  };
+
+  const toggleOther = () => {
+    setOtherOpen((open) => {
+      const next = !open;
+      if (!next) setServices((prev) => prev.filter((x) => !x.startsWith("Autre:")));
+      else if (otherText.trim())
+        setServices((prev) => [...prev.filter((x) => !x.startsWith("Autre:")), `Autre: ${otherText.trim()}`]);
+      return next;
+    });
+  };
+
+  const updateOtherText = (v: string) => {
+    setOtherText(v);
+    setServices((prev) => {
+      const rest = prev.filter((x) => !x.startsWith("Autre:"));
+      const t = v.trim();
+      return t ? [...rest, `Autre: ${t}`] : rest;
+    });
     setError(null);
   };
 
@@ -65,6 +99,11 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
     if (step === 1 && services.length === 0) return fail("Sélectionnez au moins un service.");
     if (step === 2 && (!title.trim() || !description.trim()))
       return fail("Renseignez le titre et la description de la commande.");
+    if (step === 4) {
+      const t = phone.trim();
+      if (!t) return fail("Le téléphone est requis.");
+      if (!PHONE_RE.test(t)) return fail("Format de téléphone invalide (8 à 15 chiffres, « + » optionnel).");
+    }
     return true;
   };
 
@@ -85,6 +124,11 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
   };
 
   const submit = () => {
+    if (!PHONE_RE.test(phone.trim())) {
+      setStep(4);
+      fail("Merci de renseigner un téléphone valide.");
+      return;
+    }
     const cleanPast = pastServices.filter((p) => p.service.trim());
     createOrder({
       title: title.trim(),
@@ -92,6 +136,7 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
       description: description.trim(),
       budget,
       deadline: deadline || "À convenir",
+      phone: phone.trim(),
       pastServices: cleanPast,
     });
     onComplete();
@@ -138,7 +183,7 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">Quels services vous intéressent ?</p>
             <div className="flex flex-wrap gap-2">
-              {SERVICES.map((s) => {
+              {catalogue.map((s) => {
                 const selected = services.includes(s);
                 return (
                   <button
@@ -158,7 +203,30 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
                   </button>
                 );
               })}
+              <button
+                type="button"
+                onClick={toggleOther}
+                aria-pressed={otherOpen}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border border-dashed px-3.5 py-1.5 text-sm font-medium transition-colors",
+                  otherOpen
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {otherOpen ? <Check size={14} /> : <Plus size={14} />}
+                Autre / précise-le
+              </button>
             </div>
+            {otherOpen && (
+              <Input
+                autoFocus
+                value={otherText}
+                onChange={(e) => updateOtherText(e.target.value)}
+                placeholder="Décrivez le service dont vous avez besoin…"
+                className="mt-2"
+              />
+            )}
           </div>
         )}
 
@@ -260,11 +328,14 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
         {step === 4 && (
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Téléphone" hint="Optionnel.">
+              <Field label="Téléphone" hint="Requis. Format international, ex. +212 6 12 34 56 78.">
                 <Input
+                  required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+212 …"
+                  placeholder="+212…"
+                  inputMode="tel"
+                  autoComplete="tel"
                 />
               </Field>
               <Field label="Ville" hint="Optionnel.">
@@ -291,7 +362,8 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
                   .join(", ") || "—"
               }
             />
-            <Summary label="Coordonnées" value={[phone, city].filter(Boolean).join(" · ") || "—"} />
+            <Summary label="Téléphone" value={phone} />
+            <Summary label="Ville" value={city || "—"} />
           </div>
         )}
 
@@ -326,7 +398,18 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+// Silence unused-reference warnings when tree-shaking strips the constant in dev.
+void OTHER_PILL;
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   return (
     <label className="block space-y-1.5">
       <span className="text-sm font-medium">{label}</span>

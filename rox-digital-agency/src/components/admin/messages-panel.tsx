@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneCall, Send } from "lucide-react";
 import { formatTime } from "@/components/admin/data";
 import type { AdminPortal } from "@/hooks/use-admin-portal";
+import { useChatTyping } from "@/hooks/use-chat-typing";
+import { getCachedUser } from "@/lib/api/token-store";
+import type { AdminUser } from "@/lib/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,10 +31,12 @@ export function MessagesPanel({
 
   const [draft, setDraft] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  const adminId = getCachedUser<AdminUser>("admin")?.id ?? null;
+  const { typingNames, ping, stop } = useChatTyping("admin", activeId, adminId);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [snapshot?.data.messages.length, activeId]);
+  }, [snapshot?.data.messages.length, activeId, typingNames.length]);
 
   if (clients.length === 0) {
     return (
@@ -51,6 +56,7 @@ export function MessagesPanel({
     if (!text || !snapshot) return;
     portal.actions.reply(snapshot.user.id, text);
     setDraft("");
+    stop();
   };
 
   return (
@@ -109,13 +115,29 @@ export function MessagesPanel({
                 Aucun message pour ce client.
               </p>
             )}
+            {typingNames.length > 0 && (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-1.5 rounded-2xl border border-border bg-muted/50 px-3.5 py-2 text-xs text-muted-foreground">
+                  <span className="flex gap-0.5">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70" />
+                  </span>
+                  {snapshot?.user.name ?? "Le client"} est en train d’écrire…
+                </div>
+              </div>
+            )}
             <div ref={endRef} />
           </div>
 
           <div className="mt-4 flex items-center gap-2">
             <input
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                if (e.target.value.trim()) ping(true);
+              }}
+              onBlur={() => stop()}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useClient } from "@/components/client/client-context";
+import { useChatTyping } from "@/hooks/use-chat-typing";
 import { cn } from "@/lib/utils";
 
 function formatTime(iso: string): string {
@@ -15,15 +16,16 @@ function formatTime(iso: string): string {
   }
 }
 
-export function MessagesPanel() {
+export function MessagesPanel({ clientId }: { clientId?: string }) {
   const { data, sendMessage, bookCall } = useClient();
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { typingNames, ping, stop } = useChatTyping("client", clientId, clientId);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [data.messages.length]);
+  }, [data.messages.length, typingNames.length]);
 
   const handleSend = (e: FormEvent) => {
     e.preventDefault();
@@ -31,6 +33,7 @@ export function MessagesPanel() {
     if (!text) return;
     sendMessage(text);
     setDraft("");
+    stop();
   };
 
   return (
@@ -76,6 +79,18 @@ export function MessagesPanel() {
                 </div>
               </div>
             ))}
+            {typingNames.length > 0 && (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-1.5 rounded-2xl bg-muted px-3.5 py-2 text-xs text-muted-foreground">
+                  <span className="flex gap-0.5">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70" />
+                  </span>
+                  Conseiller ROX est en train d’écrire…
+                </div>
+              </div>
+            )}
           </div>
 
           <form
@@ -84,7 +99,11 @@ export function MessagesPanel() {
           >
             <Input
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                if (e.target.value.trim()) ping(true);
+              }}
+              onBlur={() => stop()}
               placeholder="Écrivez votre message…"
               aria-label="Message"
             />

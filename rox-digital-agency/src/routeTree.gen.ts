@@ -8,18 +8,19 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root.tsx'
+import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AProposRouteImport } from './routes/a-propos.tsx'
-import { Route as AccountRouteImport } from './routes/account.tsx'
-import { Route as AdminRouteImport } from './routes/admin.tsx'
-import { Route as ContactRouteImport } from './routes/contact.tsx'
-import { Route as MethodeRouteImport } from './routes/methode.tsx'
-import { Route as PortfolioRouteImport } from './routes/portfolio.tsx'
-import { Route as ServicesRouteImport } from './routes/services.tsx'
-import { Route as TarifsRouteImport } from './routes/tarifs.tsx'
-import { Route as ServicesIndexRouteImport } from './routes/services.index.tsx'
-import { Route as ServicesSlugRouteImport } from './routes/services.$slug.tsx'
+import { Route as AProposRouteImport } from './routes/a-propos'
+import { Route as AccountRouteImport } from './routes/account'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as MethodeRouteImport } from './routes/methode'
+import { Route as PortfolioRouteImport } from './routes/portfolio'
+import { Route as ServicesRouteImport } from './routes/services'
+import { Route as TarifsRouteImport } from './routes/tarifs'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
+import { Route as ServicesIndexRouteImport } from './routes/services.index'
+import { Route as ServicesSlugRouteImport } from './routes/services.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -66,6 +67,11 @@ const TarifsRoute = TarifsRouteImport.update({
   path: '/tarifs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ServicesIndexRoute = ServicesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/portfolio': typeof PortfolioRoute
   '/services': typeof ServicesRouteWithChildren
   '/tarifs': typeof TarifsRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/services/$slug': typeof ServicesSlugRoute
   '/services/': typeof ServicesIndexRoute
 }
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/methode': typeof MethodeRoute
   '/portfolio': typeof PortfolioRoute
   '/tarifs': typeof TarifsRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/services/$slug': typeof ServicesSlugRoute
   '/services': typeof ServicesIndexRoute
 }
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/portfolio': typeof PortfolioRoute
   '/services': typeof ServicesRouteWithChildren
   '/tarifs': typeof TarifsRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/services/$slug': typeof ServicesSlugRoute
   '/services/': typeof ServicesIndexRoute
 }
@@ -128,6 +137,7 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/services'
     | '/tarifs'
+    | '/verify-email'
     | '/services/$slug'
     | '/services/'
   fileRoutesByTo: FileRoutesByTo
@@ -140,6 +150,7 @@ export interface FileRouteTypes {
     | '/methode'
     | '/portfolio'
     | '/tarifs'
+    | '/verify-email'
     | '/services/$slug'
     | '/services'
   id:
@@ -153,6 +164,7 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/services'
     | '/tarifs'
+    | '/verify-email'
     | '/services/$slug'
     | '/services/'
   fileRoutesById: FileRoutesById
@@ -167,6 +179,7 @@ export interface RootRouteChildren {
   PortfolioRoute: typeof PortfolioRoute
   ServicesRoute: typeof ServicesRouteWithChildren
   TarifsRoute: typeof TarifsRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -234,6 +247,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TarifsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/services/': {
       id: '/services/'
       path: '/'
@@ -275,6 +295,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortfolioRoute: PortfolioRoute,
   ServicesRoute: ServicesRouteWithChildren,
   TarifsRoute: TarifsRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -72,9 +72,9 @@ export function useClientAuth() {
   }, []);
 
   const signup = useCallback(
-    async (name: string, email: string, password: string): Promise<AuthResult> => {
+    async (name: string, email: string, phone: string, password: string): Promise<AuthResult> => {
       try {
-        const session = await auth.signupClient({ name, email, password });
+        const session = await auth.signupClient({ name, email, phone, password });
         setUser(session.user);
         setStatus("authed");
         return { ok: true };

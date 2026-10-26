@@ -41,21 +41,28 @@ public final class PortalDtos {
 
   public record ServiceHistoryInput(
       String id,
-      @NotBlank String service,
-      @NotBlank String year,
-      @NotBlank String outcome) {}
+      @NotBlank @jakarta.validation.constraints.Size(max = 200) String service,
+      @NotBlank @jakarta.validation.constraints.Size(max = 10) String year,
+      @NotBlank @jakarta.validation.constraints.Size(max = 500) String outcome) {}
 
   public record NewOrderInput(
       @NotBlank @jakarta.validation.constraints.Size(max = 140) String title,
-      @NotBlank String service,
+      @NotBlank @jakarta.validation.constraints.Size(max = 200) String service,
       @NotBlank @jakarta.validation.constraints.Size(max = 4000) String description,
-      @NotBlank String budget,
-      @NotBlank String deadline,
+      @jakarta.validation.constraints.Size(max = 120) String budget,
+      @jakarta.validation.constraints.Size(max = 40) String deadline,
+      @jakarta.validation.constraints.Pattern(regexp = "^$|^\\+?[0-9]{8,15}$", message = "Format de téléphone invalide")
+      String phone,
       @jakarta.validation.constraints.NotNull List<ServiceHistoryInput> pastServices) {}
 
-  public record SendMessageRequest(@NotBlank String text, String orderId) {}
+  public record SendMessageRequest(
+      @NotBlank @jakarta.validation.constraints.Size(max = 4000) String text,
+      @jakarta.validation.constraints.Size(max = 60) String orderId) {}
 
-  public record BookCallRequest(@NotBlank String date, @NotBlank String time, String subject) {}
+  public record BookCallRequest(
+      @NotBlank @jakarta.validation.constraints.Size(max = 10) String date,
+      @NotBlank @jakarta.validation.constraints.Size(max = 5) String time,
+      @jakarta.validation.constraints.Size(max = 200) String subject) {}
 
   public record AdminStatsDto(long clients, long active, long completed, long openRequests) {}
 }

@@ -14,9 +14,12 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/rox/logo";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/rox/notification-bell";
 import { ThemeToggle } from "@/components/rox/theme-toggle";
+import { useNotificationSocket } from "@/hooks/use-notification-socket";
 import { useClient } from "@/components/client/client-context";
 import { OnboardingWizard } from "@/components/client/onboarding-wizard";
+import { VerifyEmailCard } from "@/components/client/verify-email-card";
 import { OverviewPanel } from "@/components/client/overview";
 import { OrdersPanel } from "@/components/client/orders";
 import { OrderDetail } from "@/components/client/order-detail";
@@ -58,6 +61,9 @@ export function ClientPortal({ user, onLogout }: PortalProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+
+  // Realtime notifications + cache freshness for the whole client shell.
+  useNotificationSocket("client");
 
   const needsOnboarding = !data.onboarded && data.orders.length === 0;
 
@@ -125,12 +131,14 @@ export function ClientPortal({ user, onLogout }: PortalProps) {
             <Logo className="h-10 w-10 rounded-lg object-contain" />
             <span className="font-display text-base font-bold">ROX</span>
           </div>
-          <Button className="ml-auto" size="sm" onClick={() => setWizardOpen(true)}>
+          <NotificationBell role="client" onOpenOrder={openOrder} className="ml-auto" />
+          <Button size="sm" onClick={() => setWizardOpen(true)}>
             <Plus size={15} /> Nouvelle demande
           </Button>
         </header>
 
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+          {user.verified === false && <VerificationBanner email={user.email} />}
           {needsOnboarding ? (
             <OnboardingIntro onNew={() => setWizardOpen(true)} />
           ) : (
@@ -155,7 +163,7 @@ export function ClientPortal({ user, onLogout }: PortalProps) {
                 ) : (
                   <OrdersPanel onOpen={openOrder} onNew={() => setWizardOpen(true)} />
                 ))}
-              {section === "messages" && <MessagesPanel />}
+              {section === "messages" && <MessagesPanel clientId={user.id} />}
               {section === "profile" && <ProfilePanel user={user} />}
             </>
           )}
@@ -303,6 +311,27 @@ function WizardOverlay({
         </div>
         <OnboardingWizard onComplete={onDone} onCancel={hasOrders ? onClose : undefined} />
       </div>
+    </div>
+  );
+}
+
+function VerificationBanner({ email }: { email: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium">
+          Merci de vérifier votre adresse e-mail ({email}).
+        </p>
+        <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
+          {open ? "Masquer" : "Vérifier maintenant"}
+        </Button>
+      </div>
+      {open && (
+        <div className="mt-3 rounded-md bg-background/60 p-4">
+          <VerifyEmailCard initialEmail={email} compact onVerified={() => window.location.reload()} />
+        </div>
+      )}
     </div>
   );
 }
