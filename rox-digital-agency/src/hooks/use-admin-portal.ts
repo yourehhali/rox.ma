@@ -124,7 +124,7 @@ export function useAdminPortal(range: TrafficRange = "12M") {
   });
   const replyMut = useMutation({
     mutationFn: ({ clientId, text }: { clientId: string; text: string }) =>
-      messagesSvc.sendMessage({ text, clientId }, "admin"),
+      messagesSvc.sendMessage({ text, clientId }),
     onSuccess: invalidateAll,
   });
   const confirmMut = useMutation({

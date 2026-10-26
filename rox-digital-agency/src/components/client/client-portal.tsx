@@ -318,7 +318,7 @@ function WizardOverlay({
 function VerificationBanner({ email }: { email: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100">
+    <div className="mb-4 rounded-lg border border-primary/40 bg-primary/10 p-4 text-foreground dark:border-primary/50 dark:bg-primary/15">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium">
           Merci de vérifier votre adresse e-mail ({email}).
