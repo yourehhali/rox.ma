@@ -1,0 +1,804 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ROX Agency — Backend API",
+    "version": "1.0.0",
+    "summary": "Contract for the backend that replaces the prototype localStorage stores.",
+    "description": "Every request/response body the ROX frontend sends and expects. Field names, types and enum values mirror src/lib/client-store.ts, content-store.ts, portfolio-store.ts and the corresponding hooks (use-admin-portal, use-client-auth, use-admin-auth, use-portfolio, use-site-content) so swapping the local read/write helpers for HTTP calls needs no UI change. Usable with any OpenAPI 3.1 codegen (openapi-typescript, orval, openapi-generator) or simply as the shared team contract.",
+    "contact": { "name": "ROX Agency", "url": "https://rox.ma" }
+  },
+  "servers": [
+    { "url": "https://api.rox.ma/v1", "description": "Production (align with SITE_URL)" },
+    { "url": "http://localhost:8081/api/v1", "description": "Local dev through TanStack Start server" }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Client + admin session lifecycle (cookie or bearer)." },
+    { "name": "Portal", "description": "Client-scoped aggregate: onboarding, orders, messages, bookings." },
+    { "name": "Orders", "description": "Order lifecycle: create (client), advance phase, toggle task, request change, status." },
+    { "name": "Messages", "description": "Live chat between client and ROX rep." },
+    { "name": "Bookings", "description": "Call bookings: request (client) + confirm (admin)." },
+    { "name": "Clients", "description": "Admin list of client accounts + their portal snapshots." },
+    { "name": "Portfolio", "description": "Public gallery items + admin CRUD, publish/feature toggles." },
+    { "name": "Content", "description": "Site content: services (cards + detail pages), pricing plans, FAQ groups, info (NAP + zones)." },
+    { "name": "Analytics", "description": "Admin overview stats + monthly traffic series." }
+  ],
+  "paths": {
+    "/auth/client/signup": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Create a client account and start a session.",
+        "security": [],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ClientSignupRequest" } } } },
+        "responses": {
+          "201": { "description": "Account created, session issued.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthSession" } } } },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/auth/client/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Sign in to the client portal.",
+        "security": [],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } } },
+        "responses": {
+          "200": { "description": "Session issued.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthSession" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/client/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "End the client session.",
+        "responses": { "204": { "description": "No content." }, "401": { "$ref": "#/components/responses/Unauthorized" } }
+      }
+    },
+    "/auth/client/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Return the authenticated client user (used to hydrate session on reload).",
+        "responses": {
+          "200": { "description": "Current user.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ClientUser" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/admin/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Admin sign-in. Prototype credentials were admin@rox.ma / rox-admin.",
+        "security": [],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } } },
+        "responses": {
+          "200": { "description": "Admin session issued.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminAuthSession" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/admin/logout": {
+      "post": { "tags": ["Auth"], "summary": "End the admin session.", "responses": { "204": { "description": "No content." }, "401": { "$ref": "#/components/responses/Unauthorized" } } }
+    },
+    "/auth/admin/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Return the authenticated admin user.",
+        "responses": {
+          "200": { "description": "Current admin.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminUser" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+
+    "/portal": {
+      "get": {
+        "tags": ["Portal"],
+        "summary": "Client-scoped portal aggregate — mirrors loadPortal(clientId).",
+        "security": [{ "clientCookie": [] }, { "clientBearer": [] }],
+        "responses": {
+          "200": { "description": "Current client portal data.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalData" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+
+    "/orders": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "List orders. Admin sees all; client sees their own.",
+        "parameters": [{ "$ref": "#/components/parameters/StatusFilter" }],
+        "responses": {
+          "200": { "description": "Orders.", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/AdminOrder" } } } }, "required": ["items"] } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Create a new order (client onboarding wizard submission). Server seeds tasks for all 4 phases, adds a history event and a rep welcome message.",
+        "security": [{ "clientCookie": [] }, { "clientBearer": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NewOrderInput" } } } },
+        "responses": {
+          "201": { "description": "Order created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/orders/{orderId}": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Read one order.",
+        "parameters": [{ "$ref": "#/components/parameters/OrderIdPath" }],
+        "responses": {
+          "200": { "description": "Order.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/orders/{orderId}/phase": {
+      "patch": {
+        "tags": ["Orders"],
+        "summary": "Advance (or move back) the phase — admin-only. Marks matching tasks done and prepends a history event.",
+        "security": [{ "adminCookie": [] }, { "adminBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderIdPath" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "phase": { "$ref": "#/components/schemas/OrderPhase" } }, "required": ["phase"] } } } },
+        "responses": {
+          "200": { "description": "Updated order.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/orders/{orderId}/status": {
+      "patch": {
+        "tags": ["Orders"],
+        "summary": "Complete or reopen an order — admin-only.",
+        "security": [{ "adminCookie": [] }, { "adminBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderIdPath" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "$ref": "#/components/schemas/OrderStatus" } }, "required": ["status"] } } } },
+        "responses": {
+          "200": { "description": "Updated order.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/orders/{orderId}/tasks/{taskId}/toggle": {
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Flip a task's done flag and log a history entry — admin-only.",
+        "security": [{ "adminCookie": [] }, { "adminBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderIdPath" }, { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Updated order.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/orders/{orderId}/requests": {
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Client opens a change/update request on an order.",
+        "security": [{ "clientCookie": [] }, { "clientBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderIdPath" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChangeRequestInput" } } } },
+        "responses": {
+          "201": { "description": "Change request created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChangeRequest" } } } },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/orders/{orderId}/requests/{requestId}/handle": {
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Mark a change request as handled — admin-only.",
+        "security": [{ "adminCookie": [] }, { "adminBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderIdPath" }, { "name": "requestId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Updated order.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+
+    "/messages": {
+      "get": {
+        "tags": ["Messages"],
+        "summary": "Thread for the caller. Admin must scope with clientId query.",
+        "parameters": [{ "name": "clientId", "in": "query", "required": false, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Messages in chronological order.", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Message" } } }, "required": ["items"] } } } }
+        }
+      },
+      "post": {
+        "tags": ["Messages"],
+        "summary": "Send a message. Sender (\"client\" | \"rep\") is inferred from the session role, never taken from the body.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SendMessageRequest" } } } },
+        "responses": {
+          "201": { "description": "Message created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } } },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+
+    "/bookings": {
+      "get": {
+        "tags": ["Bookings"],
+        "summary": "List call bookings. Admin gets pending across all clients by default; add ?status=all for everything.",
+        "parameters": [{ "name": "status", "in": "query", "required": false, "schema": { "type": "string", "enum": ["demandé", "confirmé", "all"], "default": "demandé" } }],
+        "responses": { "200": { "description": "Bookings.", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/AdminBooking" } } }, "required": ["items"] } } } } }
+      },
+      "post": {
+        "tags": ["Bookings"],
+        "summary": "Client requests a call.",
+        "security": [{ "clientCookie": [] }, { "clientBearer": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BookCallRequest" } } } },
+        "responses": {
+          "201": { "description": "Booking requested (status = \"demandé\").", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CallBooking" } } } },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/bookings/{bookingId}/confirm": {
+      "post": {
+        "tags": ["Bookings"],
+        "summary": "Admin confirms a pending booking.",
+        "security": [{ "adminCookie": [] }, { "adminBearer": [] }],
+        "parameters": [{ "name": "bookingId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Booking confirmed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CallBooking" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+
+    "/clients": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "Admin — list every registered client account (no passwords).",
+        "security": [{ "adminCookie": [] }, { "adminBearer": [] }],
+        "responses": { "200": { "description": "Client accounts.", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/ClientUser" } } }, "required": ["items"] } } } } }
+      }
+    },
+    "/clients/{clientId}/portal": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "Admin — read one client's full portal snapshot.",
+        "security": [{ "adminCookie": [] }, { "adminBearer": [] }],
+        "parameters": [{ "name": "clientId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Portal.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortalData" } } } }, "404": { "$ref": "#/components/responses/NotFound" } }
+      }
+    },
+
+    "/portfolio": {
+      "get": {
+        "tags": ["Portfolio"],
+        "summary": "Public list. Add ?includeDrafts=true (admin) to see unpublished items.",
+        "security": [],
+        "parameters": [
+          { "name": "sector", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "featured", "in": "query", "required": false, "schema": { "type": "boolean" } },
+          { "name": "includeDrafts", "in": "query", "required": false, "schema": { "type": "boolean", "default": false } }
+        ],
+        "responses": { "200": { "description": "Items, featured first then newest.", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/PortfolioItem" } } }, "required": ["items"] } } } } }
+      },
+      "post": {
+        "tags": ["Portfolio"],
+        "summary": "Admin — create a portfolio item.",
+        "security": [{ "adminCookie": [] }, { "adminBearer": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortfolioItemInput" } } } },
+        "responses": { "201": { "description": "Created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortfolioItem" } } } }, "422": { "$ref": "#/components/responses/ValidationError" } }
+      }
+    },
+    "/portfolio/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": { "tags": ["Portfolio"], "summary": "Read one item (any state).", "responses": { "200": { "description": "Item.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortfolioItem" } } } }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "patch": { "tags": ["Portfolio"], "summary": "Admin — partial update.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortfolioItemInput" } } } }, "responses": { "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortfolioItem" } } } } } },
+      "delete": { "tags": ["Portfolio"], "summary": "Admin — remove an item.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "responses": { "204": { "description": "No content." } } }
+    },
+    "/portfolio/{id}/published": {
+      "patch": { "tags": ["Portfolio"], "summary": "Admin — publish / unpublish.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "published": { "type": "boolean" } }, "required": ["published"] } } } }, "responses": { "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortfolioItem" } } } } } }
+    },
+    "/portfolio/{id}/featured": {
+      "patch": { "tags": ["Portfolio"], "summary": "Admin — set / unset featured.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "featured": { "type": "boolean" } }, "required": ["featured"] } } } }, "responses": { "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PortfolioItem" } } } } } }
+    },
+
+    "/content/services": {
+      "get": {
+        "tags": ["Content"],
+        "summary": "List services. Public by default returns published only; ?includeDrafts=true is admin-only.",
+        "security": [],
+        "parameters": [{ "name": "includeDrafts", "in": "query", "required": false, "schema": { "type": "boolean", "default": false } }],
+        "responses": { "200": { "description": "Services in card order.", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Service" } } }, "required": ["items"] } } } } }
+      },
+      "post": { "tags": ["Content"], "summary": "Admin — create a service (card + detail page).", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServiceInput" } } } }, "responses": { "201": { "description": "Created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Service" } } } }, "409": { "$ref": "#/components/responses/Conflict" }, "422": { "$ref": "#/components/responses/ValidationError" } } }
+    },
+    "/content/services/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": { "tags": ["Content"], "summary": "Read one service by id (any state).", "responses": { "200": { "description": "Service.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Service" } } } }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "patch": { "tags": ["Content"], "summary": "Admin — partial update.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServiceInput" } } } }, "responses": { "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Service" } } } } } },
+      "delete": { "tags": ["Content"], "summary": "Admin — remove a service.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "responses": { "204": { "description": "No content." } } }
+    },
+    "/content/services/slug/{slug}": {
+      "get": { "tags": ["Content"], "summary": "Public — read one published service by slug (used by /services/$slug SSR).", "security": [], "parameters": [{ "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Service.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Service" } } } }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/content/services/{id}/published": {
+      "patch": { "tags": ["Content"], "summary": "Admin — publish / unpublish a service.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "published": { "type": "boolean" } }, "required": ["published"] } } } }, "responses": { "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Service" } } } } } }
+    },
+
+    "/content/plans": {
+      "get": { "tags": ["Content"], "summary": "Public — list pricing plans in display order.", "security": [], "responses": { "200": { "description": "Plans.", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Plan" } } }, "required": ["items"] } } } } } },
+      "post": { "tags": ["Content"], "summary": "Admin — create a plan.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlanInput" } } } }, "responses": { "201": { "description": "Created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Plan" } } } } } }
+    },
+    "/content/plans/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "patch": { "tags": ["Content"], "summary": "Admin — update a plan.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlanInput" } } } }, "responses": { "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Plan" } } } } } },
+      "delete": { "tags": ["Content"], "summary": "Admin — remove a plan.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "responses": { "204": { "description": "No content." } } }
+    },
+
+    "/content/faqs": {
+      "get": { "tags": ["Content"], "summary": "Public — all FAQ groups keyed by group name.", "security": [], "responses": { "200": { "description": "Groups.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FaqGroups" } } } } } }
+    },
+    "/content/faqs/{group}": {
+      "put": { "tags": ["Content"], "summary": "Admin — replace a whole group's Q&As.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "parameters": [{ "name": "group", "in": "path", "required": true, "schema": { "type": "string" } }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/FaqItem" } } } } }, "responses": { "200": { "description": "Saved group.", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/FaqItem" } } } } } } }
+    },
+
+    "/content/info": {
+      "get": { "tags": ["Content"], "summary": "Public — business info (NAP, cities, pricing disclaimer).", "security": [], "responses": { "200": { "description": "Info.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SiteInfo" } } } } } },
+      "put": { "tags": ["Content"], "summary": "Admin — replace the whole info object.", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SiteInfo" } } } }, "responses": { "200": { "description": "Saved.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SiteInfo" } } } } } }
+    },
+
+    "/admin/stats": {
+      "get": { "tags": ["Analytics"], "summary": "Admin overview KPIs (matches useAdminPortal().stats).", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "responses": { "200": { "description": "Stats.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminStats" } } } } } }
+    },
+    "/admin/traffic": {
+      "get": { "tags": ["Analytics"], "summary": "Monthly site traffic + inbound contacts series (replaces the demo chartData).", "security": [{ "adminCookie": [] }, { "adminBearer": [] }], "parameters": [{ "name": "range", "in": "query", "required": false, "schema": { "type": "string", "enum": ["6M", "12M", "YTD"], "default": "12M" } }], "responses": { "200": { "description": "Series.", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/TrafficPoint" } } }, "required": ["items"] } } } } } }
+    }
+  },
+
+  "components": {
+    "securitySchemes": {
+      "clientCookie": { "type": "apiKey", "in": "cookie", "name": "rox_client_session", "description": "HttpOnly, SameSite=Lax cookie issued by /auth/client/login." },
+      "clientBearer": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "Alternative for mobile/SSR (short-lived access token)." },
+      "adminCookie":  { "type": "apiKey", "in": "cookie", "name": "rox_admin_session" },
+      "adminBearer":  { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "parameters": {
+      "OrderIdPath": { "name": "orderId", "in": "path", "required": true, "schema": { "type": "string" } },
+      "StatusFilter": { "name": "status", "in": "query", "required": false, "schema": { "type": "string", "enum": ["active", "Terminé", "all"], "default": "all" } }
+    },
+    "responses": {
+      "ValidationError": { "description": "Request body failed validation.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "error": { "code": "validation_error", "message": "Certains champs sont invalides.", "details": [{ "field": "email", "issue": "format_invalide" }] } } } } },
+      "Unauthorized":    { "description": "Missing or invalid session.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "error": { "code": "unauthorized", "message": "Session requise." } } } } },
+      "Forbidden":       { "description": "Wrong role for this action.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "error": { "code": "forbidden", "message": "Accès refusé." } } } } },
+      "NotFound":        { "description": "Resource does not exist.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "error": { "code": "not_found", "message": "Ressource introuvable." } } } } },
+      "Conflict":        { "description": "Unique constraint violated (e.g. duplicated email or slug).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "error": { "code": "conflict", "message": "Un compte existe déjà avec cet e-mail." } } } } }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string", "description": "Stable machine code: unauthorized | forbidden | not_found | conflict | validation_error | rate_limited | internal_error." },
+              "message": { "type": "string", "description": "Human-readable, French (matches UI copy)." },
+              "details": { "type": "array", "items": { "type": "object", "properties": { "field": { "type": "string" }, "issue": { "type": "string" } } }, "description": "Optional per-field issues for 422." }
+            }
+          }
+        },
+        "required": ["error"]
+      },
+
+      "ClientSignupRequest": {
+        "type": "object",
+        "required": ["name", "email", "password"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "minLength": 8, "maxLength": 128 }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string" }
+        }
+      },
+      "ClientUser": {
+        "type": "object",
+        "required": ["id", "name", "email"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "email": { "type": "string", "format": "email" }
+        }
+      },
+      "AdminUser": {
+        "type": "object",
+        "required": ["id", "email"],
+        "properties": {
+          "id": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "name": { "type": "string" }
+        }
+      },
+      "AuthSession": {
+        "type": "object",
+        "required": ["user"],
+        "properties": {
+          "user": { "$ref": "#/components/schemas/ClientUser" },
+          "accessToken": { "type": "string", "description": "Present when the client uses Bearer auth; absent with the cookie flow." },
+          "refreshToken": { "type": "string" },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AdminAuthSession": {
+        "type": "object",
+        "required": ["user"],
+        "properties": {
+          "user": { "$ref": "#/components/schemas/AdminUser" },
+          "accessToken": { "type": "string" },
+          "refreshToken": { "type": "string" },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      },
+
+      "OrderPhase": { "type": "string", "enum": ["cadrage", "maquette", "developpement", "lancement"], "description": "Matches src/lib/client-store.ts PHASES ids. Display labels come from the frontend registry, not the API." },
+      "OrderStatus": { "type": "string", "enum": ["active", "Terminé"] },
+      "Task": {
+        "type": "object",
+        "required": ["id", "label", "done", "updatedAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "done": { "type": "boolean" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "OrderEvent": {
+        "type": "object",
+        "required": ["id", "at", "note"],
+        "properties": { "id": { "type": "string" }, "at": { "type": "string", "format": "date-time" }, "note": { "type": "string" } }
+      },
+      "ChangeRequest": {
+        "type": "object",
+        "required": ["id", "type", "note", "at", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string", "enum": ["update", "edit"] },
+          "note": { "type": "string" },
+          "at": { "type": "string", "format": "date-time" },
+          "status": { "type": "string", "enum": ["ouvert", "pris en compte"] }
+        }
+      },
+      "ChangeRequestInput": {
+        "type": "object",
+        "required": ["type", "note"],
+        "properties": {
+          "type": { "type": "string", "enum": ["update", "edit"] },
+          "note": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        }
+      },
+      "ServiceHistoryItem": {
+        "type": "object",
+        "required": ["id", "service", "year", "outcome"],
+        "properties": {
+          "id": { "type": "string" },
+          "service": { "type": "string" },
+          "year": { "type": "string" },
+          "outcome": { "type": "string" }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "required": ["id", "title", "service", "description", "budget", "deadline", "phase", "status", "createdAt", "tasks", "history", "requests", "pastServices"],
+        "properties": {
+          "id": { "type": "string" },
+          "clientId": { "type": "string", "description": "Server-derived from the session; never trust the client." },
+          "title": { "type": "string" },
+          "service": { "type": "string", "description": "One of src/lib/client-store.ts SERVICES (\"Création site web\" | \"SEO local\" | \"Figma\" | \"WordPress / Elementor\" | \"Hébergement\")." },
+          "description": { "type": "string" },
+          "budget": { "type": "string" },
+          "deadline": { "type": "string" },
+          "phase": { "$ref": "#/components/schemas/OrderPhase" },
+          "status": { "$ref": "#/components/schemas/OrderStatus" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
+          "history": { "type": "array", "items": { "$ref": "#/components/schemas/OrderEvent" }, "description": "Newest first." },
+          "requests": { "type": "array", "items": { "$ref": "#/components/schemas/ChangeRequest" }, "description": "Newest first." },
+          "pastServices": { "type": "array", "items": { "$ref": "#/components/schemas/ServiceHistoryItem" } }
+        }
+      },
+      "AdminOrder": {
+        "type": "object",
+        "description": "Order flattened with its client for admin list views (matches useAdminPortal().allOrders).",
+        "required": ["client", "order"],
+        "properties": {
+          "client": { "$ref": "#/components/schemas/ClientUser" },
+          "order": { "$ref": "#/components/schemas/Order" }
+        }
+      },
+      "NewOrderInput": {
+        "type": "object",
+        "required": ["title", "service", "description", "budget", "deadline", "pastServices"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 140 },
+          "service": { "type": "string" },
+          "description": { "type": "string", "maxLength": 4000 },
+          "budget": { "type": "string" },
+          "deadline": { "type": "string" },
+          "pastServices": { "type": "array", "items": { "$ref": "#/components/schemas/ServiceHistoryItem" } }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "required": ["id", "at", "from", "text"],
+        "properties": {
+          "id": { "type": "string" },
+          "at": { "type": "string", "format": "date-time" },
+          "from": { "type": "string", "enum": ["client", "rep"], "description": "Set by the server from the session role." },
+          "text": { "type": "string" },
+          "orderId": { "type": ["string", "null"], "description": "Optional thread scoping to one order." }
+        }
+      },
+      "SendMessageRequest": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
+          "clientId": { "type": "string", "description": "Admin-only: target a specific client's thread." },
+          "orderId": { "type": ["string", "null"] }
+        }
+      },
+      "CallBooking": {
+        "type": "object",
+        "required": ["id", "date", "time", "subject", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "date": { "type": "string", "format": "date" },
+          "time": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$", "description": "HH:MM in Africa/Casablanca (UTC+1)." },
+          "subject": { "type": "string" },
+          "status": { "type": "string", "enum": ["demandé", "confirmé"] }
+        }
+      },
+      "BookCallRequest": {
+        "type": "object",
+        "required": ["date", "time", "subject"],
+        "properties": {
+          "date": { "type": "string", "format": "date" },
+          "time": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+          "subject": { "type": "string", "maxLength": 200 }
+        }
+      },
+      "AdminBooking": {
+        "type": "object",
+        "required": ["client", "booking"],
+        "properties": {
+          "client": { "$ref": "#/components/schemas/ClientUser" },
+          "booking": { "$ref": "#/components/schemas/CallBooking" }
+        }
+      },
+      "PortalData": {
+        "type": "object",
+        "description": "Client-scoped aggregate persisted today under localStorage `rox-client-data:<clientId>`.",
+        "required": ["onboarded", "orders", "messages", "bookings"],
+        "properties": {
+          "onboarded": { "type": "boolean" },
+          "orders": { "type": "array", "items": { "$ref": "#/components/schemas/Order" } },
+          "messages": { "type": "array", "items": { "$ref": "#/components/schemas/Message" } },
+          "bookings": { "type": "array", "items": { "$ref": "#/components/schemas/CallBooking" } }
+        }
+      },
+      "AdminStats": {
+        "type": "object",
+        "required": ["clients", "active", "completed", "openRequests"],
+        "properties": {
+          "clients": { "type": "integer", "minimum": 0 },
+          "active": { "type": "integer", "minimum": 0 },
+          "completed": { "type": "integer", "minimum": 0 },
+          "openRequests": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "TrafficPoint": {
+        "type": "object",
+        "required": ["month", "views", "contacts"],
+        "properties": {
+          "month": { "type": "string", "pattern": "^[A-Z][a-z]{2}$", "description": "French short month label used by the chart (Jan, Fév, ...)." },
+          "views": { "type": "integer", "minimum": 0 },
+          "contacts": { "type": "integer", "minimum": 0 }
+        }
+      },
+
+      "PortfolioItem": {
+        "type": "object",
+        "required": ["id", "title", "client", "sector", "service", "city", "summary", "result", "tags", "colorA", "colorB", "featured", "published", "createdAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "client": { "type": "string" },
+          "sector": { "type": "string", "enum": ["Restauration", "Artisanat", "Commerce", "Services", "Santé", "Automobile", "Immobilier", "Éducation", "Beauté & Bien-être"] },
+          "service": { "type": "string" },
+          "city": { "type": "string" },
+          "summary": { "type": "string" },
+          "result": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "colorA": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$", "description": "Gradient start (hex)." },
+          "colorB": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$", "description": "Gradient end (hex)." },
+          "featured": { "type": "boolean" },
+          "published": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PortfolioItemInput": {
+        "type": "object",
+        "description": "Body for POST /portfolio and PATCH /portfolio/{id}. `createdAt` and `id` are server-managed.",
+        "required": ["title", "client", "sector"],
+        "properties": {
+          "title": { "type": "string" },
+          "client": { "type": "string" },
+          "sector": { "type": "string" },
+          "service": { "type": "string" },
+          "city": { "type": "string" },
+          "summary": { "type": "string" },
+          "result": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "colorA": { "type": "string" },
+          "colorB": { "type": "string" },
+          "featured": { "type": "boolean" },
+          "published": { "type": "boolean" } }
+      },
+
+      "IconKey": {
+        "type": "string",
+        "description": "Keys of src/lib/service-icons.ts SERVICE_ICONS. Send the string only; the client maps it to a lucide component.",
+        "enum": ["Globe", "MapPin", "Figma", "PanelsTopLeft", "Server", "MonitorSmartphone", "Search", "Palette", "ShoppingCart", "Megaphone", "Rocket", "Wrench", "Camera", "UtensilsCrossed", "Star"]
+      },
+      "ServiceExtra": {
+        "type": "object",
+        "required": ["title", "text"],
+        "properties": { "title": { "type": "string" }, "text": { "type": "string" } }
+      },
+      "ServicePage": {
+        "type": "object",
+        "description": "Detail-page copy rendered by /services/$slug.",
+        "required": ["eyebrow", "title", "lead", "heading", "subtext", "points", "extras", "priceLabel", "priceValue"],
+        "properties": {
+          "eyebrow": { "type": "string" },
+          "title": { "type": "string" },
+          "lead": { "type": "string" },
+          "heading": { "type": "string" },
+          "subtext": { "type": "string" },
+          "points": { "type": "array", "items": { "type": "string" } },
+          "extras": { "type": "array", "items": { "$ref": "#/components/schemas/ServiceExtra" } },
+          "priceLabel": { "type": "string" },
+          "priceValue": { "type": "string" }
+        }
+      },
+      "Service": {
+        "type": "object",
+        "required": ["id", "slug", "name", "tag", "icon", "short", "faqKey", "published", "page"],
+        "properties": {
+          "id": { "type": "string" },
+          "slug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "description": "URL segment for /services/<slug>. Server should enforce uniqueness." },
+          "name": { "type": "string" },
+          "tag": { "type": "string" },
+          "icon": { "$ref": "#/components/schemas/IconKey" },
+          "short": { "type": "string" },
+          "faqKey": { "type": "string", "description": "Which FAQ group the detail page renders (key into /content/faqs)." },
+          "published": { "type": "boolean" },
+          "page": { "$ref": "#/components/schemas/ServicePage" }
+        }
+      },
+      "ServiceInput": {
+        "type": "object",
+        "description": "Body for POST /content/services and PATCH /content/services/{id}. `id` is server-managed.",
+        "required": ["slug", "name"],
+        "properties": {
+          "slug": { "type": "string" },
+          "name": { "type": "string" },
+          "tag": { "type": "string" },
+          "icon": { "$ref": "#/components/schemas/IconKey" },
+          "short": { "type": "string" },
+          "faqKey": { "type": "string" },
+          "published": { "type": "boolean" },
+          "page": { "$ref": "#/components/schemas/ServicePage" }
+        }
+      },
+      "Plan": {
+        "type": "object",
+        "required": ["id", "name", "price", "unit", "description", "features", "highlight"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "price": { "type": "string" },
+          "unit": { "type": "string" },
+          "description": { "type": "string" },
+          "features": { "type": "array", "items": { "type": "string" } },
+          "highlight": { "type": "boolean" }
+        }
+      },
+      "PlanInput": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "price": { "type": "string" },
+          "unit": { "type": "string" },
+          "description": { "type": "string" },
+          "features": { "type": "array", "items": { "type": "string" } },
+          "highlight": { "type": "boolean" }
+        }
+      },
+      "FaqItem": {
+        "type": "object",
+        "required": ["q", "a"],
+        "properties": { "q": { "type": "string", "minLength": 1 }, "a": { "type": "string", "minLength": 1 } }
+      },
+      "FaqGroups": {
+        "type": "object",
+        "description": "Map of group key → list of Q&As. Groups seen today: general, home, methode, apropos, portfolio, contact, seo, web, figma, wordpress, hebergement. New groups may be added by the admin.",
+        "additionalProperties": { "type": "array", "items": { "$ref": "#/components/schemas/FaqItem" } }
+      },
+      "SiteInfo": {
+        "type": "object",
+        "description": "Coordinates + service area + pricing disclaimer. Empty strings mean 'not yet configured' — the public UI hides any empty coordinate rather than showing fake data.",
+        "required": ["email", "phone", "whatsapp", "cities", "pricingNote"],
+        "properties": {
+          "email": { "type": "string" },
+          "phone": { "type": "string" },
+          "whatsapp": { "type": "string" },
+          "cities": { "type": "array", "items": { "type": "string" } },
+          "pricingNote": { "type": "string" }
+        }
+      },
+      "SiteContent": {
+        "type": "object",
+        "description": "Aggregate shape persisted today under localStorage `rox-site-content`. Exposed read-only as GET /content (rarely used — the granular endpoints above are preferred), written only through the granular admin routes.",
+        "required": ["services", "plans", "faqs", "info"],
+        "properties": {
+          "services": { "type": "array", "items": { "$ref": "#/components/schemas/Service" } },
+          "plans": { "type": "array", "items": { "$ref": "#/components/schemas/Plan" } },
+          "faqs": { "$ref": "#/components/schemas/FaqGroups" },
+          "info": { "$ref": "#/components/schemas/SiteInfo" }
+        }
+      }
+    }
+  },
+  "x-conventions": {
+    "contentNegotiation": "Always application/json, UTF-8. Empty string fields are meaningful (used to hide unset coordinates).",
+    "identifiers": "Opaque strings (UUID v4 recommended). Frontend already uses prefixed ids like `c_…`, `p_…`, `svc_…` — those stay valid but the server may generate its own.",
+    "timestamps": "ISO-8601 UTC (RFC 3339). UI formats to fr-FR on display.",
+    "roles": "Two roles: `client` and `admin`. Endpoint scoping is enforced server-side — never trust a clientId from the body when the caller is a client.",
+    "sorting": "Server returns arrays already in display order (services = card order, portfolio = featured first then newest, history/messages/requests = newest first as today).",
+    "filtering": "Boolean flags are query parameters (`?includeDrafts=true`, `?featured=true`).",
+    "pagination": "Currently not required (small datasets). If added later, use cursor-based: `{ items, nextCursor }`.",
+    "errors": "See /components/schemas/Error. Every non-2xx response uses that envelope.",
+    "caching": "GET /content/* and GET /portfolio are cacheable by CDN (public SEO content). Portal/orders/messages/bookings must be `Cache-Control: private, no-store`.",
+    "idempotency": "POST /orders and POST /bookings accept an optional `Idempotency-Key` header.",
+    "rateLimits": "Suggested 60 req/min per IP on public content, 300 req/min per session on authenticated routes.",
+    "cors": "Allow SITE_URL origin (https://rox.ma) + localhost:8081 in dev.",
+    "localization": "Server messages, validation errors and content strings are in French. The API is not i18n'd — content is authored in French by the admin."
+  },
+  "x-migration-notes": {
+    "summary": "How the current prototype maps to this contract.",
+    "replacements": [
+      { "prototype": "loadSiteContent()  (src/lib/content-store.ts)",     "endpoint": "GET /content/services?includeDrafts, GET /content/plans, GET /content/faqs, GET /content/info — one call per section, cached at the router level. Public SSR should call the anon variant (no drafts)." },
+      { "prototype": "loadPortfolio()     (src/lib/portfolio-store.ts)",   "endpoint": "GET /portfolio" },
+      { "prototype": "loadPortal(id)      (src/lib/client-store.ts)",      "endpoint": "GET /portal (client) or GET /clients/{id}/portal (admin)" },
+      { "prototype": "listClientAccounts()(src/hooks/use-client-auth.ts)", "endpoint": "GET /clients" },
+      { "prototype": "createOrderIn(...)",                                 "endpoint": "POST /orders" },
+      { "prototype": "advanceOrderIn(...), toggleTaskIn(...), setOrderStatusIn(...), markRequestHandledIn(...), appendRepReplyIn(...), confirmBookingIn(...)", "endpoint": "corresponding /orders/…/phase|status|tasks/…/toggle|requests/…/handle, /messages POST, /bookings/{id}/confirm" },
+      { "prototype": "usePortfolio actions (save/remove/togglePublished/toggleFeatured)", "endpoint": "POST /portfolio, PATCH /portfolio/{id}, DELETE /portfolio/{id}, PATCH /portfolio/{id}/published, PATCH /portfolio/{id}/featured" },
+      { "prototype": "useSiteContentAdmin actions (saveService/removeService, savePlan/removePlan, setFaqs, setInfo)", "endpoint": "matching /content/... routes above" }
+    ],
+    "preservedAcrossSwap": [
+      "Field names, enum values and shapes are identical to the localStorage stores.",
+      "Public pages read only published content: /portfolio (published=true), /content/services?published, /content/plans, /content/faqs, /content/info.",
+      "Server must generate ids, createdAt and infer `from` on messages from the session role — do not accept them from the client.",
+      "Slug uniqueness (services) and email uniqueness (client accounts) should be enforced by the server, returning 409 conflict."
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+#!/bin/sh
+# Minimal Maven Wrapper (only-script mode). Downloads the Maven distribution once,
+# then execs it with all arguments.
+set -e
+
+WRAPPER_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROPS="$WRAPPER_DIR/.mvn/wrapper/maven-wrapper.properties"
+[ -f "$PROPS" ] || { echo "Missing $PROPS"; exit 1; }
+
+DIST_URL=$(grep -E '^distributionUrl=' "$PROPS" | cut -d= -f2-)
+[ -n "$DIST_URL" ] || { echo "distributionUrl not set"; exit 1; }
+
+MAVEN_BASENAME=$(basename "$DIST_URL" .zip)
+CACHE_DIR="${HOME}/.m2/wrapper/dists/${MAVEN_BASENAME}"
+
+# Find the bin/mvn inside the cache dir (zip's top-level dir may or may not match MAVEN_BASENAME).
+MVN_BIN=""
+if [ -d "$CACHE_DIR" ]; then
+  MVN_BIN=$(find "$CACHE_DIR" -type f -path '*/bin/mvn' 2>/dev/null | head -1)
+fi
+
+if [ -z "$MVN_BIN" ] || [ ! -x "$MVN_BIN" ]; then
+  echo "Downloading Maven from $DIST_URL ..."
+  mkdir -p "$CACHE_DIR"
+  TMP_ZIP="${CACHE_DIR}/dist.zip"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$TMP_ZIP" "$DIST_URL"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$TMP_ZIP" "$DIST_URL"
+  else
+    echo "Install curl or wget to bootstrap Maven."; exit 1
+  fi
+  ( cd "$CACHE_DIR" && unzip -q -o dist.zip && rm -f dist.zip )
+  MVN_BIN=$(find "$CACHE_DIR" -type f -path '*/bin/mvn' 2>/dev/null | head -1)
+  [ -n "$MVN_BIN" ] || { echo "Failed to locate bin/mvn after extraction"; exit 1; }
+  chmod +x "$MVN_BIN"
+fi
+
+exec "$MVN_BIN" "$@"

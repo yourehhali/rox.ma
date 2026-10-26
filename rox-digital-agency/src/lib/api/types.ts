@@ -1,0 +1,297 @@
+// DTO types mirroring api-spec.json (see repository root). Field names use the
+// *spec* vocabulary, which is also what the UI components consume today. The
+// service modules under `src/services/` adapt the backend's on-wire shape
+// (PortalDtos.java + ContentDtos.java + PortfolioDtos.java) to these types.
+
+// --- Auth -------------------------------------------------------------------
+
+export type ClientUser = {
+  id: string;
+  name: string;
+  email: string;
+  createdAt?: string;
+};
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  name?: string;
+  createdAt?: string;
+};
+
+export type AuthSession<TUser> = {
+  user: TUser;
+  accessToken: string;
+  refreshToken: string;
+  /** Access-token TTL in seconds, as reported by the backend. */
+  accessExpiresIn: number;
+};
+
+export type ClientSession = AuthSession<ClientUser>;
+export type AdminSession = AuthSession<AdminUser>;
+
+export type ClientSignupInput = {
+  name: string;
+  email: string;
+  password: string;
+};
+
+export type LoginInput = {
+  email: string;
+  password: string;
+};
+
+// --- Portal / Orders --------------------------------------------------------
+
+export type OrderPhase = "cadrage" | "maquette" | "developpement" | "lancement";
+export type OrderStatus = "active" | "Terminé";
+
+export type Task = {
+  id: string;
+  label: string;
+  done: boolean;
+  updatedAt: string;
+};
+
+export type OrderEvent = {
+  id: string;
+  at: string;
+  note: string;
+};
+
+export type ChangeRequest = {
+  id: string;
+  type: "update" | "edit";
+  note: string;
+  at: string;
+  status: "ouvert" | "pris en compte";
+};
+
+export type ServiceHistoryItem = {
+  id: string;
+  service: string;
+  year: string;
+  outcome: string;
+};
+
+export type Order = {
+  id: string;
+  title: string;
+  service: string;
+  description: string;
+  budget: string;
+  deadline: string;
+  phase: OrderPhase;
+  status: OrderStatus;
+  createdAt: string;
+  tasks: Task[];
+  /** UI-facing name for the ordered log of events. Backend field: `events`. */
+  history: OrderEvent[];
+  requests: ChangeRequest[];
+  /** UI-facing name for the client's previously-purchased services. Backend field: `history`. */
+  pastServices: ServiceHistoryItem[];
+};
+
+export type ClientRef = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+export type AdminOrder = {
+  order: Order;
+  client: ClientRef;
+};
+
+export type NewOrderInput = {
+  title: string;
+  service: string;
+  description: string;
+  budget: string;
+  deadline: string;
+  pastServices: Omit<ServiceHistoryItem, "id">[];
+};
+
+export type ChangeRequestInput = {
+  type: "update" | "edit";
+  note: string;
+};
+
+export type Message = {
+  id: string;
+  at: string;
+  from: "client" | "rep";
+  text: string;
+  clientId?: string;
+  orderId?: string | null;
+};
+
+export type SendMessageInput = {
+  text: string;
+  /** Admin-only: target thread. */
+  clientId?: string;
+  orderId?: string | null;
+};
+
+export type CallBooking = {
+  id: string;
+  date: string;
+  time: string;
+  subject: string;
+  status: "demandé" | "confirmé";
+  clientId?: string;
+};
+
+export type AdminBooking = {
+  booking: CallBooking;
+  client: ClientRef;
+};
+
+export type BookCallInput = {
+  date: string;
+  time: string;
+  subject: string;
+};
+
+export type PortalData = {
+  /** Derived from `orders.length > 0` — the backend does not persist this flag. */
+  onboarded: boolean;
+  orders: Order[];
+  messages: Message[];
+  bookings: CallBooking[];
+};
+
+// --- Portfolio --------------------------------------------------------------
+
+export type PortfolioSector =
+  | "Restauration"
+  | "Artisanat"
+  | "Commerce"
+  | "Services"
+  | "Santé"
+  | "Automobile"
+  | "Immobilier"
+  | "Éducation"
+  | "Beauté & Bien-être";
+
+export type PortfolioItem = {
+  id: string;
+  title: string;
+  client: string;
+  sector: string;
+  service: string;
+  city: string;
+  summary: string;
+  result: string;
+  tags: string[];
+  colorA: string;
+  colorB: string;
+  featured: boolean;
+  published: boolean;
+  createdAt: string;
+};
+
+export type PortfolioItemInput = Partial<Omit<PortfolioItem, "id" | "createdAt">> & {
+  title: string;
+  client: string;
+  sector: string;
+};
+
+// --- Content ----------------------------------------------------------------
+
+export type ServiceExtra = { title: string; text: string };
+
+export type ServicePage = {
+  eyebrow: string;
+  title: string;
+  lead: string;
+  heading: string;
+  subtext: string;
+  points: string[];
+  extras: ServiceExtra[];
+  priceLabel: string;
+  priceValue: string;
+};
+
+export type Service = {
+  id: string;
+  slug: string;
+  name: string;
+  tag: string;
+  icon: string;
+  short: string;
+  faqKey: string;
+  published: boolean;
+  page: ServicePage;
+};
+
+export type ServiceInput = Partial<Omit<Service, "id">> & { slug: string; name: string };
+
+export type Plan = {
+  id: string;
+  name: string;
+  price: string;
+  unit: string;
+  description: string;
+  features: string[];
+  highlight: boolean;
+};
+
+export type PlanInput = Partial<Omit<Plan, "id">> & { name: string };
+
+export type FaqItem = { q: string; a: string };
+export type FaqGroups = Record<string, FaqItem[]>;
+
+export type SiteInfo = {
+  email: string;
+  phone: string;
+  whatsapp: string;
+  cities: string[];
+  pricingNote: string;
+};
+
+export type SiteContent = {
+  services: Service[];
+  plans: Plan[];
+  faqs: FaqGroups;
+  info: SiteInfo;
+};
+
+// --- Analytics --------------------------------------------------------------
+
+export type AdminStats = {
+  clients: number;
+  active: number;
+  completed: number;
+  openRequests: number;
+};
+
+export type TrafficPoint = {
+  month: string;
+  views: number;
+  contacts: number;
+};
+
+export type TrafficRange = "6M" | "12M" | "YTD";
+
+// --- Error envelope ---------------------------------------------------------
+
+export type ApiErrorCode =
+  | "unauthorized"
+  | "forbidden"
+  | "not_found"
+  | "conflict"
+  | "validation_error"
+  | "rate_limited"
+  | "internal_error"
+  | string;
+
+export type ApiErrorFieldIssue = { field: string; issue: string };
+
+export type ApiErrorEnvelope = {
+  error: {
+    code: ApiErrorCode;
+    message: string;
+    details?: ApiErrorFieldIssue[];
+  };
+};

@@ -1,0 +1,103 @@
+package ma.rox.api.portal;
+
+import jakarta.validation.Valid;
+import java.util.List;
+import java.util.Map;
+import ma.rox.api.error.ApiException;
+import ma.rox.api.portal.PortalDtos.*;
+import ma.rox.api.security.CurrentUser;
+import ma.rox.api.security.Role;
+import ma.rox.api.security.RoxPrincipal;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/orders")
+public class OrdersController {
+
+  private final PortalService svc;
+  private final CurrentUser me;
+
+  public OrdersController(PortalService svc, CurrentUser me) {
+    this.svc = svc;
+    this.me = me;
+  }
+
+  @GetMapping
+  public List<?> list() {
+    RoxPrincipal p = me.require();
+    if (p.role() == Role.ADMIN) {
+      return svc.listAllOrders().stream().map(svc::toAdminDto).toList();
+    }
+    return svc.listOrdersForClient(p.id()).stream().map(svc::toDto).toList();
+  }
+
+  @PostMapping
+  public ResponseEntity<OrderDto> create(@Valid @RequestBody NewOrderInput input) {
+    RoxPrincipal p = me.requireClient();
+    Order o = svc.createOrder(p.id(), input);
+    return ResponseEntity.status(HttpStatus.CREATED).body(svc.toDto(o));
+  }
+
+  @GetMapping("/{id}")
+  public OrderDto get(@PathVariable String id) {
+    Order o = svc.requireOrder(id);
+    requireAccessible(o);
+    return svc.toDto(o);
+  }
+
+  @PatchMapping("/{id}/phase")
+  public OrderDto patchPhase(@PathVariable String id, @RequestBody Map<String, String> body) {
+    me.requireAdmin();
+    String phase = body.get("phase");
+    if (phase == null || phase.isBlank()) {
+      throw ApiException.badRequest("Champ 'phase' requis.", List.of(new ma.rox.api.error.ApiError.FieldIssue("phase", "required")));
+    }
+    Order o = svc.advancePhase(id, phase);
+    return svc.toDto(o);
+  }
+
+  @PatchMapping("/{id}/status")
+  public OrderDto patchStatus(@PathVariable String id, @RequestBody Map<String, String> body) {
+    me.requireAdmin();
+    String status = body.get("status");
+    if (status == null || status.isBlank()) {
+      throw ApiException.badRequest("Champ 'status' requis.", List.of(new ma.rox.api.error.ApiError.FieldIssue("status", "required")));
+    }
+    return svc.toDto(svc.setStatus(id, status));
+  }
+
+  @PostMapping("/{id}/tasks/{taskId}/toggle")
+  public OrderDto toggleTask(@PathVariable String id, @PathVariable String taskId) {
+    me.requireAdmin();
+    return svc.toDto(svc.toggleTask(id, taskId));
+  }
+
+  @PostMapping("/{id}/requests")
+  public ResponseEntity<ChangeRequestDto> addRequest(@PathVariable String id, @RequestBody Map<String, String> body) {
+    RoxPrincipal p = me.requireClient();
+    Order existing = svc.requireOrder(id);
+    if (!existing.getClient().getId().equals(p.id())) throw ApiException.forbidden();
+    String type = body.getOrDefault("type", "update");
+    String note = body.getOrDefault("note", "");
+    ChangeRequest r = svc.addRequest(id, type, note);
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(new ChangeRequestDto(r.getId(), r.getType(), r.getNote(),
+            ma.rox.api.common.IdGen.iso(r.getAt()), r.getStatus()));
+  }
+
+  @PostMapping("/{id}/requests/{requestId}/handle")
+  public ChangeRequestDto handleRequest(@PathVariable String id, @PathVariable String requestId) {
+    me.requireAdmin();
+    ChangeRequest r = svc.handleRequest(id, requestId);
+    return new ChangeRequestDto(r.getId(), r.getType(), r.getNote(),
+        ma.rox.api.common.IdGen.iso(r.getAt()), r.getStatus());
+  }
+
+  private void requireAccessible(Order o) {
+    RoxPrincipal p = me.require();
+    if (p.role() == Role.ADMIN) return;
+    if (!o.getClient().getId().equals(p.id())) throw ApiException.forbidden();
+  }
+}

@@ -1,0 +1,97 @@
+# =============================================================================
+# Root .gitignore — monorepo covering rox-api (Spring Boot) and
+# rox-digital-agency (TanStack Start). Each subproject has its own .gitignore
+# for language/tool-specific rules; this file only handles cross-cutting stuff.
+# =============================================================================
+
+# Secrets — never commit real env files. `.env.example` is the committed template.
+.env
+.env.*
+!.env.example
+
+# Local compose overrides (port tweaks, untracked host bindings).
+docker-compose.override.yml
+docker-compose.override.*.yml
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs & tmp
+*.log
+logs/
+tmp/
+coverage/
+
+# Ad-hoc archives / scratch
+*.tar
+*.tar.gz
+*.zip
+scratch/
+playground/
+
+# =============================================================================
+# AI coding assistants / agent tooling — these are local, per-developer,
+# and typically contain prompts/context you don't want in the public repo.
+# Patterns without a leading `/` match at any depth (so AGENTS.md inside
+# rox-digital-agency/ is also caught).
+# =============================================================================
+
+# Cross-tool agent instruction files
+AGENTS.md
+AGENTS.md.*
+agents.md
+tldr.md
+
+# Anthropic / Claude Code
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.claudeignore
+.claudesettings.json
+
+# Cursor
+.cursor/
+.cursorrules
+.cursorignore
+.cursorindexingignore
+.mdc
+
+# Cline / Roo / Kilo / Windsurf / Continue / Cody / Codeium / Zencoder
+.cline/
+.clinerules/
+.roo/
+.kilocode/
+.windsurf/
+.continue/
+.cody/
+.codeium/
+.zencoder/
+
+# Aider
+.aider*
+.aider.conf.yml
+.aiderignore
+
+# Qoder (this assistant)
+.qoder/
+
+# Generic AI context / plans / memory
+.aiexclude
+.aiignore
+.memory_bank/
+.plans/
+.plan.md
+.specstory/
+
+# Lovable editor local state (project.json inside stays tracked if you want)
+.lovable/preview.config.json
+.lovable/preview.local.json

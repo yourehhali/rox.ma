@@ -1,0 +1,17 @@
+target/
+.mvn/wrapper/maven-wrapper.jar
+*.log
+.env
+.env.*
+!.env.example
+.idea
+.vscode
+*.iml
+.git
+.gitignore
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+.dockerignore
+README.md
+api-spec.json

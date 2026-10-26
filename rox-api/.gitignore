@@ -1,0 +1,44 @@
+# =============================================================================
+# rox-api (Spring Boot / Maven)
+# =============================================================================
+
+# Build outputs
+target/
+build/
+out/
+*.class
+*.jar
+!**/maven-wrapper.jar
+
+# Spring Initializr cruft
+HELP.md
+
+# IDE
+*.iml
+*.ipr
+*.iws
+.idea/
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+
+# Secrets — Spring reads these at runtime from the developer's machine.
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Maven local repo cache (only appears if someone runs `mvn -Dmaven.repo.local=…`)
+.m2/
+
+# Test / coverage output
+jacoco.exec
+site/
