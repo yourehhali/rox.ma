@@ -14,11 +14,14 @@ public class AuthController {
   private final AuthService svc;
   private final CurrentUser me;
   private final EmailVerificationService otp;
+  private final VerificationOrchestrator verifier;
 
-  public AuthController(AuthService svc, CurrentUser me, EmailVerificationService otp) {
+  public AuthController(AuthService svc, CurrentUser me, EmailVerificationService otp,
+                        VerificationOrchestrator verifier) {
     this.svc = svc;
     this.me = me;
     this.otp = otp;
+    this.verifier = verifier;
   }
 
   @PostMapping("/client/signup")
@@ -78,7 +81,7 @@ public class AuthController {
 
   @PostMapping("/client/resend-otp")
   public ResponseEntity<Void> clientResendOtp(@Valid @RequestBody AuthDtos.ResendOtpRequest req) {
-    otp.issueOtp(req.email(), EmailVerificationService.PURPOSE_SIGNUP);
+    verifier.resend(req.email());
     return ResponseEntity.accepted().build();
   }
 }

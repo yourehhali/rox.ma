@@ -24,7 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class EmailVerificationService {
 
   public static final String PURPOSE_SIGNUP = "signup";
-  private static final Duration TTL = Duration.ofMinutes(15);
+  public static final long TTL_MINUTES = 15;
+  private static final Duration TTL = Duration.ofMinutes(TTL_MINUTES);
   private static final Duration COOLDOWN = Duration.ofSeconds(60);
   private static final int MAX_ATTEMPTS = 3;
   private static final SecureRandom RNG = new SecureRandom();
@@ -32,17 +33,21 @@ public class EmailVerificationService {
   private final EmailVerificationRepo repo;
   private final ClientRepo clients;
   private final PasswordEncoder encoder;
-  private final EmailService mailer;
 
   public EmailVerificationService(EmailVerificationRepo repo, ClientRepo clients,
-                                  PasswordEncoder encoder, EmailService mailer) {
+                                  PasswordEncoder encoder) {
     this.repo = repo;
     this.clients = clients;
     this.encoder = encoder;
-    this.mailer = mailer;
   }
 
-  /** Generate + persist + email a fresh OTP. Returns plaintext code only for tests. */
+  /**
+   * Generate + persist a fresh single-use OTP and return the plaintext code.
+   * This is now delivery-agnostic: it does NOT email/send the code. Callers go
+   * through {@link VerificationOrchestrator} which fans the code out to email
+   * and (when configured) WhatsApp. Cooldown and burn-old-rows stay here so the
+   * rate rules apply regardless of channel.
+   */
   @Transactional
   public String issueOtp(String emailRaw, String purpose) {
     String email = emailRaw.trim().toLowerCase();
@@ -65,10 +70,6 @@ public class EmailVerificationService {
     row.setExpiresAt(now.plus(TTL));
     row.setAttempts(0);
     repo.save(row);
-
-    String subject = "ROX — code de vérification";
-    String html = renderHtml(code, TTL.toMinutes());
-    mailer.send(email, subject, "Votre code ROX : " + code, html);
     return code;
   }
 
@@ -97,28 +98,5 @@ public class EmailVerificationService {
     c.setVerified(true);
     c.setVerifiedAt(OffsetDateTime.now());
     clients.save(c);
-  }
-
-  /** Convenience for signup: called after account creation, best-effort. */
-  public void issueForSignup(String email) {
-    try {
-      issueOtp(email, PURPOSE_SIGNUP);
-    } catch (ApiException ignored) {
-      // Signup just happened — cooldown cannot be in effect; swallow unexpected issues
-      // so signup never fails on an SMTP/DB hiccup.
-    } catch (RuntimeException ex) {
-      // Log via mailer already handles SMTP failures; DB / RNG failures are swallowed here.
-    }
-  }
-
-  private static String renderHtml(String code, long minutes) {
-    return "<div style='font-family:system-ui,sans-serif;max-width:520px'>"
-        + "<h2 style='color:#E31B23;margin:0 0 12px'>ROX Agency</h2>"
-        + "<p>Votre code de vérification est :</p>"
-        + "<p style='font-size:32px;letter-spacing:6px;font-weight:700;color:#111827;margin:16px 0'>"
-        + code + "</p>"
-        + "<p style='color:#6b7280'>Il expire dans " + minutes + " minutes. "
-        + "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>"
-        + "</div>";
   }
 }

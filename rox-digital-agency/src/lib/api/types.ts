@@ -299,6 +299,52 @@ export type AppNotification = {
   createdAt: string;
 };
 
+// --- WhatsApp (OpenWA) admin surface ----------------------------------------
+
+/** Read model returned by `GET/PUT /admin/whatsapp/settings` — `apiKeyMasked` never carries the real secret. */
+export type WhatsAppSettings = {
+  enabled: boolean;
+  baseUrl: string | null;
+  apiKeyMasked: string | null;
+  apiKeySet: boolean;
+  sessionName: string | null;
+  sessionId: string | null;
+  messageTemplate: string | null;
+  updatedAt: string | null;
+};
+
+/** Write model for `PUT /admin/whatsapp/settings` — a blank/masked `apiKey` keeps the stored key. */
+export type WhatsAppSettingsInput = {
+  enabled?: boolean;
+  baseUrl?: string;
+  apiKey?: string;
+  sessionName?: string;
+  messageTemplate?: string;
+};
+
+/** Gateway + session health for the status pill. */
+export type WhatsAppStatus = {
+  enabled: boolean;
+  reachable: boolean;
+  gatewayError: string | null;
+  sessionId: string | null;
+  sessionName: string | null;
+  sessionStatus: string | null;
+  sessionPaired: boolean;
+};
+
+/** QR payload — `qrCode` is a PNG data URL, or null when not ready. */
+export type WhatsAppQr = {
+  qrCode: string | null;
+  status: string | null;
+};
+
+export type WhatsAppSendResult = {
+  sent: boolean;
+  messageId: string | null;
+  error: string | null;
+};
+
 // --- Error envelope ---------------------------------------------------------
 
 export type ApiErrorCode =

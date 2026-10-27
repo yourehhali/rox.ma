@@ -57,4 +57,10 @@ export const keys = {
     all: ["board"] as const,
     snapshot: () => ["board", "snapshot"] as const,
   },
+  whatsapp: {
+    all: ["whatsapp"] as const,
+    settings: () => ["whatsapp", "settings"] as const,
+    status: () => ["whatsapp", "status"] as const,
+    qr: () => ["whatsapp", "qr"] as const,
+  },
 } as const;

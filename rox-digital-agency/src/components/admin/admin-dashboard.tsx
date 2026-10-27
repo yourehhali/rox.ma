@@ -9,6 +9,7 @@ import { MessagesPanel } from "@/components/admin/messages-panel";
 import { PortfolioPanel } from "@/components/admin/portfolio-panel";
 import { ContentPanel } from "@/components/admin/content-panel";
 import { BoardPanel } from "@/components/admin/board-panel";
+import { WhatsAppPanel } from "@/components/admin/whatsapp-panel";
 import { NotificationBell } from "@/components/rox/notification-bell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAdminPortal } from "@/hooks/use-admin-portal";
@@ -42,6 +43,11 @@ const sectionMeta: Record<AdminSection, { title: string; description: string }> 
       "Services et leurs pages, offres & tarifs, questions fréquentes et coordonnées : tout le contenu public, éditable ici.",
   },
   settings: { title: "Paramètres", description: "Préférences du tableau de bord." },
+  whatsapp: {
+    title: "WhatsApp OTP",
+    description:
+      "Configurez la passerelle OpenWA pour envoyer le code de vérification par WhatsApp, en plus de l'e-mail, et appairez l'appareil.",
+  },
 };
 
 export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
@@ -131,6 +137,7 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           )}
           {active === "portfolio" && <PortfolioPanel />}
           {active === "content" && <ContentPanel />}
+          {active === "whatsapp" && <WhatsAppPanel />}
           {active === "settings" && <SettingsPanel />}
         </main>
       </div>

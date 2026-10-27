@@ -64,6 +64,15 @@ rox:
     grace-hours: ${ROX_VERIFICATION_GRACE_HOURS:24}
   mail:
     from: ${MAIL_FROM:ROX Agency <no-reply@rox.ma>}
+  whatsapp:
+    # OpenWA WhatsApp OTP gateway. These env values are first-boot defaults /
+    # fallbacks; the admin panel edits the whatsapp_settings DB row which then
+    # overrides them (blank DB columns fall back to these).
+    enabled: ${ROX_WHATSAPP_ENABLED:false}
+    base-url: ${OPENWA_URL:}
+    api-key: ${OPENWA_API_KEY:}
+    session-name: ${OPENWA_SESSION:rox}
+    message-template: "${OPENWA_OTP_TEMPLATE:ROX — votre code de vérification : {code} (valide {minutes} min).}"
   rate-limit:
     enabled: ${ROX_RATE_LIMIT_ENABLED:true}
     login-per-minute: ${ROX_RATE_LIMIT_LOGIN_PER_MIN:5}

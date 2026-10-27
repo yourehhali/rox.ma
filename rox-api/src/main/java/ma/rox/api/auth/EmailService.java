@@ -30,7 +30,7 @@ public class EmailService {
       @Value("${rox.mail.from:ROX Agency <no-reply@rox.ma>}") String from) {
     this.sender = sender;
     this.from = from;
-    this.enabled = host != null && !host.isBlank();
+    this.enabled = host != null && !host.trim().isEmpty();
   }
 
   @Async
@@ -50,7 +50,9 @@ public class EmailService {
       sender.send(msg);
       log.info("Email sent to {} ({})", to, subject);
     } catch (Exception ex) {
-      log.error("Email send failed to {} ({}): {}", to, subject, ex.getMessage());
+      // Full stack trace so an SMTP rejection/auth/DNS problem is never invisible:
+      // sends are async + best-effort, so the caller still sees HTTP 2xx.
+      log.error("Email send FAILED to {} ({}): {}", to, subject, ex.getMessage(), ex);
     }
   }
 

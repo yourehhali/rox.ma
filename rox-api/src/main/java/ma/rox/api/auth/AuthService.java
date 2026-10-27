@@ -23,12 +23,12 @@ public class AuthService {
   private final RefreshTokenRepo tokens;
   private final PasswordEncoder encoder;
   private final JwtService jwt;
-  private final EmailVerificationService otp;
+  private final VerificationOrchestrator verifier;
   private final boolean verificationRequired;
   private final Duration gracePeriod;
 
   public AuthService(ClientRepo clients, AdminRepo admins, RefreshTokenRepo tokens,
-                     PasswordEncoder encoder, JwtService jwt, EmailVerificationService otp,
+                     PasswordEncoder encoder, JwtService jwt, VerificationOrchestrator verifier,
                      @Value("${rox.verification.required:false}") boolean verificationRequired,
                      @Value("${rox.verification.grace-hours:24}") long graceHours) {
     this.clients = clients;
@@ -36,7 +36,7 @@ public class AuthService {
     this.tokens = tokens;
     this.encoder = encoder;
     this.jwt = jwt;
-    this.otp = otp;
+    this.verifier = verifier;
     this.verificationRequired = verificationRequired;
     this.gracePeriod = Duration.ofHours(graceHours);
   }
@@ -56,8 +56,8 @@ public class AuthService {
     c.setVerified(false);
     clients.save(c);
 
-    // Best-effort OTP dispatch so signup never fails on SMTP/DB hiccups.
-    otp.issueForSignup(c.getEmail());
+    // Best-effort OTP dispatch (email + WhatsApp) so signup never fails on a send hiccup.
+    verifier.dispatchSignupBestEffort(c.getEmail(), c.getPhone(), c.getName());
 
     RoxPrincipal p = new RoxPrincipal(c.getId(), c.getEmail(), Role.CLIENT);
     return new AuthDtos.AuthSessionDto(

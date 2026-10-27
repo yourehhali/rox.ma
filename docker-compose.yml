@@ -27,6 +27,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      openwa:
+        condition: service_healthy
     environment:
       SERVER_PORT: ${API_PORT:-8090}
       DATABASE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-rox_api}
@@ -46,6 +48,14 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-ROX Agency <no-reply@rox.ma>}
+      # WhatsApp OTP via the internal OpenWA gateway (rox-api proxies it). The
+      # admin panel edits these at runtime (whatsapp_settings DB row); env values
+      # are first-boot defaults. OPENWA_API_KEY must match OpenWA's API_MASTER_KEY.
+      ROX_WHATSAPP_ENABLED: ${ROX_WHATSAPP_ENABLED:-false}
+      OPENWA_URL: ${OPENWA_URL:-http://openwa:2785}
+      OPENWA_API_KEY: ${OPENWA_API_KEY:-}
+      OPENWA_SESSION: ${OPENWA_SESSION:-rox}
+      OPENWA_OTP_TEMPLATE: "${OPENWA_OTP_TEMPLATE:-ROX — votre code de vérification : {code} (valide {minutes} min).}"
       # Feature flags
       ROX_VERIFICATION_REQUIRED: ${ROX_VERIFICATION_REQUIRED:-false}
       ROX_VERIFICATION_GRACE_HOURS: ${ROX_VERIFICATION_GRACE_HOURS:-24}
@@ -92,8 +102,44 @@ services:
     expose:
       - "3000"
 
+  # OpenWA — unofficial WhatsApp bridge. ENGINE_TYPE=baileys runs the lightweight
+  # pure-Node/WebSocket engine (no Puppeteer + headless Chromium, so no ~1 GB extra
+  # RAM). OpenWA normalizes our engine-neutral <digits>@c.us chatIds to Baileys'
+  # @s.whatsapp.net JIDs internally. Internal-only: rox-api reaches it at
+  # http://openwa:2785 and proxies its HTTP API, so OpenWA's own dashboard is never
+  # publicly routed. Shares the API_MASTER_KEY/OPENWA_API_KEY secret with rox-api.
+  openwa:
+    image: ghcr.io/rmyndharis/openwa:0.25.0
+    restart: unless-stopped
+    environment:
+      PORT: 2785
+      DATABASE_TYPE: sqlite
+      DATABASE_NAME: /app/data/openwa.sqlite
+      ENGINE_TYPE: baileys
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_PATH: /app/data/media
+      REDIS_ENABLED: "false"
+      QUEUE_ENABLED: "false"
+      CACHE_ENABLED: "false"
+      AUTO_START_SESSIONS: "true"
+      API_MASTER_KEY: ${OPENWA_API_KEY:?set a shared OPENWA_API_KEY for OpenWA + rox-api}
+    volumes:
+      - openwa-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2785/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks: [roxnet]
+    # Internal-only — no host port. rox-api talks to it over roxnet.
+    expose:
+      - "2785"
+
 volumes:
   rox-pgdata:
+    driver: local
+  openwa-data:
     driver: local
 
 networks:

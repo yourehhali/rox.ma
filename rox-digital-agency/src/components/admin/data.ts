@@ -9,6 +9,7 @@ import {
   Layers,
   LayoutDashboard,
   type LucideIcon,
+  MessageCircle,
   MessageSquare,
   Settings,
   Users,
@@ -24,6 +25,7 @@ export type AdminSection =
   | "messages"
   | "portfolio"
   | "content"
+  | "whatsapp"
   | "settings";
 
 export const navItems: { id: AdminSection; label: string; icon: LucideIcon }[] = [
@@ -34,6 +36,7 @@ export const navItems: { id: AdminSection; label: string; icon: LucideIcon }[] =
   { id: "messages", label: "Messagerie", icon: MessageSquare },
   { id: "portfolio", label: "Réalisations", icon: Images },
   { id: "content", label: "Contenu du site", icon: Layers },
+  { id: "whatsapp", label: "WhatsApp OTP", icon: MessageCircle },
   { id: "settings", label: "Paramètres", icon: Settings },
 ];
 
