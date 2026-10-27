@@ -37,7 +37,8 @@ export function Hero() {
           backgroundPosition: "center 68%",
         }}
       />
-      {/* Muted looping YouTube background — oversized 16:9 iframe cropped to the section */}
+      {/* Muted looping YouTube background — oversized 16:9 iframe, centered and cropped
+          to cover any viewport (portrait mobile included) without letterboxing. */}
       <div aria-hidden className="absolute inset-0 overflow-hidden">
         <iframe
           title=""
@@ -45,8 +46,18 @@ export function Hero() {
           tabIndex={-1}
           allow="autoplay; encrypted-media; picture-in-picture"
           referrerPolicy="strict-origin-when-cross-origin"
-          style={{ pointerEvents: "none" }}
-          className="absolute top-1/2 left-1/2 aspect-video w-full min-w-full -translate-x-1/2 -translate-y-1/2 scale-[1.75] border-none sm:scale-[1.35]"
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: "100vw",
+            height: "56.25vw", // 16:9 from width — wins on landscape viewports
+            minWidth: "100vw",
+            minHeight: "177.78vh", // 16:9 from height — wins on portrait (mobile) viewports
+            transform: "translate(-50%, -50%)",
+            border: "0",
+            pointerEvents: "none",
+          }}
         />
       </div>
       {/* Dark overlay over the video */}
@@ -63,6 +74,11 @@ export function Hero() {
         aria-hidden
         className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-black/90"
       />
+      {/* Invisible click/hover shield — sits just above the un-z-indexed video layer so
+          the player never receives pointer events (its title strip, watch-on-YouTube
+          badge and controls can never appear), while the content column below still
+          paints and stays clickable since it comes later in the DOM. */}
+      <div aria-hidden className="absolute inset-0 z-1" />
 
       {/* Fixed on-dark content column — the video background is dark in both themes */}
       <div className="relative mx-auto w-full max-w-6xl px-4 text-white sm:px-6">
