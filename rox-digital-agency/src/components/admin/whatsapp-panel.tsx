@@ -101,11 +101,14 @@ export function WhatsAppPanel() {
       setSaveMsg(null);
       setSaveErr(errMessage(err, "Enregistrement impossible."));
     },
+    // Inline banners already report every failure in this panel.
+    meta: { silentError: true },
   });
 
   const createMut = useMutation({
     mutationFn: createSession,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.whatsapp.status() }),
+    meta: { silentError: true },
   });
   const startMut = useMutation({
     mutationFn: startSession,
@@ -113,6 +116,7 @@ export function WhatsAppPanel() {
       qc.invalidateQueries({ queryKey: keys.whatsapp.status() });
       setQrActive(true);
     },
+    meta: { silentError: true },
   });
 
   // Poll the QR only while pairing is active; stop once the session is ready.
@@ -142,6 +146,7 @@ export function WhatsAppPanel() {
       setTestMsg(null);
       setTestErr(errMessage(err, "Envoi impossible."));
     },
+    meta: { silentError: true },
   });
 
   if (isLoading) {

@@ -130,6 +130,8 @@ export function useAdminPortal(range: TrafficRange = "12M") {
     mutationFn: ({ clientId, text }: { clientId: string; text: string }) =>
       messagesSvc.sendMessage({ text, clientId }, "admin"),
     onSuccess: invalidateAll,
+    // The chat panel shows failures inline under the composer.
+    meta: { silentError: true },
   });
   const confirmMut = useMutation({
     mutationFn: (bookingId: string) => bookingsSvc.confirmBooking(bookingId),

@@ -11,7 +11,7 @@ export type ClientContextValue = {
   data: PortalData;
   /** True while the initial portal query is still running. */
   loading: boolean;
-  createOrder: (input: NewOrderInput) => void;
+  createOrder: (input: NewOrderInput) => Promise<unknown>;
   toggleTask: (orderId: string, taskId: string) => void;
   requestChange: (orderId: string, type: ChangeRequest["type"], note: string) => void;
   sendMessage: (text: string) => void;

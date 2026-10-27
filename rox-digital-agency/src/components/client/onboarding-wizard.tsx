@@ -1,5 +1,6 @@
 import { useContext, useMemo, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -31,6 +32,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Lead contact handed back to the caller after a successful guest submit. */
 export type GuestLead = { name: string; email: string; phone: string };
+
+type FieldKey = "activity" | "services" | "title" | "description" | "name" | "email" | "phone";
 
 type WizardProps = {
   onComplete: (orderId?: string, lead?: GuestLead) => void;
@@ -121,25 +124,47 @@ export function OnboardingWizard({
     return false;
   }
 
+  // Live per-field validation: errors are derived from the values on every
+  // keystroke but only surfaced once the field is blurred or "Continuer" was
+  // attempted, so feedback never nags while someone is still typing.
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  const fieldErrors = useMemo<Partial<Record<FieldKey, string>>>(() => {
+    const e: Partial<Record<FieldKey, string>> = {};
+    if (!activity.trim()) e.activity = "Décrivez votre activité.";
+    if (services.length === 0) e.services = "Sélectionnez au moins un service.";
+    if (!title.trim()) e.title = "Renseignez le titre du projet.";
+    if (!description.trim()) e.description = "Décrivez le projet.";
+    if (isGuest) {
+      if (name.trim().length < 2) e.name = "Indiquez votre nom.";
+      if (!EMAIL_RE.test(email.trim())) e.email = "Adresse e-mail invalide.";
+    }
+    const t = phone.trim();
+    if (!t) e.phone = "Le téléphone est requis.";
+    else if (!PHONE_RE.test(t)) e.phone = "Format invalide (8 à 15 chiffres, « + » optionnel).";
+    return e;
+  }, [activity, services, title, description, isGuest, name, email, phone]);
+
+  const stepKeys = (): FieldKey[] =>
+    step === 0
+      ? ["activity", "services"]
+      : step === 1
+        ? ["title", "description"]
+        : isGuest
+          ? ["name", "email", "phone"]
+          : ["phone"];
+
+  const showErr = (k: FieldKey) => (touched[k] ? fieldErrors[k] : undefined);
+  const markTouched = (k: FieldKey) => setTouched((p) => (p[k] ? p : { ...p, [k]: true }));
+
   const validateStep = (): boolean => {
-    if (step === 0) {
-      if (!activity.trim()) return fail("Décrivez votre activité.");
-      if (services.length === 0) return fail("Sélectionnez au moins un service.");
-    }
-    if (step === 1 && (!title.trim() || !description.trim())) {
-      return fail("Renseignez le titre et la description du projet.");
-    }
-    if (step === 2) {
-      if (isGuest) {
-        if (name.trim().length < 2) return fail("Indiquez votre nom.");
-        if (!EMAIL_RE.test(email.trim())) return fail("Adresse e-mail invalide.");
-      }
-      const t = phone.trim();
-      if (!t) return fail("Le téléphone est requis.");
-      if (!PHONE_RE.test(t))
-        return fail("Format de téléphone invalide (8 à 15 chiffres, « + » optionnel).");
-    }
-    return true;
+    const keys = stepKeys();
+    setTouched((p) => {
+      const n = { ...p };
+      for (const k of keys) n[k] = true;
+      return n;
+    });
+    return !keys.some((k) => fieldErrors[k]);
   };
 
   const next = () => {
@@ -201,15 +226,27 @@ export function OnboardingWizard({
       fail("Session expirée — reconnectez-vous pour envoyer votre demande.");
       return;
     }
-    clientCtx.createOrder({
-      title: title.trim(),
-      service: services.join(" · "),
-      description: composedDescription,
-      budget,
-      deadline: deadline || "À convenir",
-      phone: phone.trim(),
-      pastServices: cleanPast,
-    });
+    setSubmitting(true);
+    try {
+      // Await the server verdict before closing the wizard. The old fire-and-
+      // forget `mutate()` + immediate `onComplete()` is what made rejected
+      // orders (validation, rate limit, expired session) look like successes.
+      await clientCtx.createOrder({
+        title: title.trim(),
+        service: services.join(" · "),
+        description: composedDescription,
+        budget,
+        deadline: deadline || "À convenir",
+        phone: phone.trim(),
+        pastServices: cleanPast,
+      });
+    } catch {
+      // The global MutationCache toast reports the failure; the wizard stays
+      // open so the visitor can correct the input and retry.
+      setSubmitting(false);
+      return;
+    }
+    toast.success("Demande envoyée à l'équipe ROX.");
     onComplete();
   };
 
@@ -236,6 +273,7 @@ export function OnboardingWizard({
             <Field
               label="Votre activité"
               hint="Le nom et le type d'activité (ex. restaurant, cabinet, boutique)."
+              error={showErr("activity")}
             >
               <Input
                 value={activity}
@@ -243,6 +281,9 @@ export function OnboardingWizard({
                   setActivity(e.target.value);
                   setError(null);
                 }}
+                onBlur={() => markTouched("activity")}
+                aria-invalid={!!showErr("activity")}
+                className={cn(showErr("activity") && "border-destructive")}
                 placeholder="Ex. Boutique de vêtements à Oujda"
               />
             </Field>
@@ -301,25 +342,32 @@ export function OnboardingWizard({
                   className="mt-2"
                 />
               )}
+              {showErr("services") && (
+                <p className="text-xs font-medium text-destructive">{showErr("services")}</p>
+              )}
             </div>
           </div>
         )}
 
         {step === 1 && (
           <div className="space-y-4">
-            <Field label="Titre du projet">
+            <Field label="Titre du projet" error={showErr("title")}>
               <Input
                 value={title}
                 onChange={(e) => {
                   setTitle(e.target.value);
                   setError(null);
                 }}
+                onBlur={() => markTouched("title")}
+                aria-invalid={!!showErr("title")}
+                className={cn(showErr("title") && "border-destructive")}
                 placeholder="Ex. Site vitrine + SEO local"
               />
             </Field>
             <Field
               label="Description"
               hint="Parlez-nous du périmètre, des pages souhaitées, de vos références."
+              error={showErr("description")}
             >
               <Textarea
                 rows={4}
@@ -328,6 +376,9 @@ export function OnboardingWizard({
                   setDescription(e.target.value);
                   setError(null);
                 }}
+                onBlur={() => markTouched("description")}
+                aria-invalid={!!showErr("description")}
+                className={cn(showErr("description") && "border-destructive")}
                 placeholder="Décrivez votre projet…"
               />
             </Field>
@@ -346,11 +397,7 @@ export function OnboardingWizard({
                 </select>
               </Field>
               <Field label="Délai souhaité">
-                <Input
-                  type="date"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                />
+                <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
               </Field>
             </div>
 
@@ -415,18 +462,25 @@ export function OnboardingWizard({
 
             {isGuest ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Nom complet">
+                <Field label="Nom complet" error={showErr("name")}>
                   <Input
                     value={name}
                     onChange={(e) => {
                       setName(e.target.value);
                       setError(null);
                     }}
+                    onBlur={() => markTouched("name")}
+                    aria-invalid={!!showErr("name")}
+                    className={cn(showErr("name") && "border-destructive")}
                     placeholder="Votre nom"
                     autoComplete="name"
                   />
                 </Field>
-                <Field label="E-mail" hint="Sera utilisé pour créer et retrouver votre compte.">
+                <Field
+                  label="E-mail"
+                  hint="Sera utilisé pour créer et retrouver votre compte."
+                  error={showErr("email")}
+                >
                   <Input
                     type="email"
                     value={email}
@@ -434,17 +488,27 @@ export function OnboardingWizard({
                       setEmail(e.target.value);
                       setError(null);
                     }}
+                    onBlur={() => markTouched("email")}
+                    aria-invalid={!!showErr("email")}
+                    className={cn(showErr("email") && "border-destructive")}
                     placeholder="vous@exemple.ma"
                     autoComplete="email"
                   />
                 </Field>
-                <Field label="Téléphone" hint="Format international, ex. +212 6 12 34 56 78.">
+                <Field
+                  label="Téléphone"
+                  hint="Format international, ex. +212 6 12 34 56 78."
+                  error={showErr("phone")}
+                >
                   <Input
                     value={phone}
                     onChange={(e) => {
                       setPhone(e.target.value);
                       setError(null);
                     }}
+                    onBlur={() => markTouched("phone")}
+                    aria-invalid={!!showErr("phone")}
+                    className={cn(showErr("phone") && "border-destructive")}
                     placeholder="+212…"
                     inputMode="tel"
                     autoComplete="tel"
@@ -469,13 +533,20 @@ export function OnboardingWizard({
                   </Field>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Téléphone" hint="Format international, ex. +212 6 12 34 56 78.">
+                  <Field
+                    label="Téléphone"
+                    hint="Format international, ex. +212 6 12 34 56 78."
+                    error={showErr("phone")}
+                  >
                     <Input
                       value={phone}
                       onChange={(e) => {
                         setPhone(e.target.value);
                         setError(null);
                       }}
+                      onBlur={() => markTouched("phone")}
+                      aria-invalid={!!showErr("phone")}
+                      className={cn(showErr("phone") && "border-destructive")}
                       placeholder="+212…"
                       inputMode="tel"
                       autoComplete="tel"
@@ -536,17 +607,23 @@ export function OnboardingWizard({
 function Field({
   label,
   hint,
+  error,
   children,
 }: {
   label: string;
-  hint?: string;
+  hint?: string | undefined;
+  error?: string | null | undefined;
   children: ReactNode;
 }) {
   return (
     <label className="block space-y-1.5">
       <span className="text-sm font-medium">{label}</span>
       {children}
-      {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
+      {error ? (
+        <span className="block text-xs font-medium text-destructive">{error}</span>
+      ) : (
+        hint && <span className="block text-xs text-muted-foreground">{hint}</span>
+      )}
     </label>
   );
 }

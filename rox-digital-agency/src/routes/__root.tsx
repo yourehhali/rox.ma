@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { JsonLd } from "@/components/rox/json-ld";
+import { Toaster } from "@/components/ui/sonner";
 import { organizationLd, websiteLd } from "@/lib/seo";
 
 // Applies the saved theme before first paint to avoid a flash of the wrong mode.
@@ -96,8 +97,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
-      { rel: "icon", href: "/light.ico", type: "image/x-icon", media: "(prefers-color-scheme: light)" },
-      { rel: "icon", href: "/dark.ico",  type: "image/x-icon", media: "(prefers-color-scheme: dark)"  },
+      {
+        rel: "icon",
+        href: "/light.ico",
+        type: "image/x-icon",
+        media: "(prefers-color-scheme: light)",
+      },
+      {
+        rel: "icon",
+        href: "/dark.ico",
+        type: "image/x-icon",
+        media: "(prefers-color-scheme: dark)",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -129,6 +140,8 @@ function RootComponent() {
       <JsonLd data={[organizationLd(), websiteLd()]} />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      {/* Global toast host: mutation failures + explicit success/error toasts. */}
+      <Toaster position="top-center" richColors closeButton />
     </QueryClientProvider>
   );
 }

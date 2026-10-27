@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { OnboardingWizard, type GuestLead } from "@/components/client/onboarding-wizard";
 import * as auth from "@/services/auth";
 import { ApiRequestError } from "@/lib/api/http";
+import { cn } from "@/lib/utils";
 
 const PHONE_RE = /^\+?[0-9]{8,15}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -74,6 +75,30 @@ function GuestRegisterCard({ lead, onBack }: { lead: GuestLead; onBack: () => vo
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
+  // Live per-field validation (shown after blur or after a submit attempt),
+  // so bad input is flagged before the request ever leaves the browser.
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const fieldErrors: Record<"name" | "email" | "phone" | "password", string | undefined> = {
+    name: mode === "signup" && name.trim().length < 2 ? "Indiquez votre nom." : undefined,
+    email: !EMAIL_RE.test(email.trim()) ? "Adresse e-mail invalide." : undefined,
+    phone:
+      mode !== "signup"
+        ? undefined
+        : !phone.trim()
+          ? "Téléphone requis."
+          : !PHONE_RE.test(phone.trim())
+            ? "Téléphone invalide (8 à 15 chiffres, « + » optionnel)."
+            : undefined,
+    password:
+      mode === "signup" && !PASSWORD_RE.test(password)
+        ? "Mot de passe trop faible : min. 8 caractères avec majuscule, minuscule et chiffre."
+        : undefined,
+  };
+  const show = (k: "name" | "email" | "phone" | "password") =>
+    touched[k] ? fieldErrors[k] : undefined;
+  const markTouched = (k: "name" | "email" | "phone" | "password") =>
+    setTouched((p) => (p[k] ? p : { ...p, [k]: true }));
+
   const toPortal = () => navigate({ to: "/account" });
 
   const submit = async (e: FormEvent) => {
@@ -81,25 +106,9 @@ function GuestRegisterCard({ lead, onBack }: { lead: GuestLead; onBack: () => vo
     setError(null);
     setInfo(null);
 
-    if (!EMAIL_RE.test(email.trim())) {
-      setError("Adresse e-mail invalide.");
+    setTouched({ name: true, email: true, phone: true, password: true });
+    if (fieldErrors.name || fieldErrors.email || fieldErrors.phone || fieldErrors.password) {
       return;
-    }
-    if (mode === "signup") {
-      if (name.trim().length < 2) {
-        setError("Indiquez votre nom.");
-        return;
-      }
-      if (!PHONE_RE.test(phone.trim())) {
-        setError("Téléphone invalide (8 à 15 chiffres, « + » optionnel).");
-        return;
-      }
-      if (!PASSWORD_RE.test(password)) {
-        setError(
-          "Mot de passe trop faible : min. 8 caractères avec majuscule, minuscule et chiffre.",
-        );
-        return;
-      }
     }
 
     setBusy(true);
@@ -121,7 +130,9 @@ function GuestRegisterCard({ lead, onBack }: { lead: GuestLead; onBack: () => vo
       setBusy(false);
       if (err instanceof ApiRequestError && err.code === "conflict" && mode === "signup") {
         setMode("login");
-        setInfo("Un compte existe déjà avec cet e-mail. Connectez-vous pour retrouver votre demande.");
+        setInfo(
+          "Un compte existe déjà avec cet e-mail. Connectez-vous pour retrouver votre demande.",
+        );
         return;
       }
       if (
@@ -183,10 +194,18 @@ function GuestRegisterCard({ lead, onBack }: { lead: GuestLead; onBack: () => vo
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onBlur={() => markTouched("name")}
+              aria-invalid={!!show("name")}
               placeholder="Votre nom"
               autoComplete="name"
-              className="rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className={cn(
+                "rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none",
+                show("name") && "border-destructive",
+              )}
             />
+            {show("name") && (
+              <span className="text-xs font-medium text-destructive">{show("name")}</span>
+            )}
           </label>
         )}
 
@@ -196,10 +215,18 @@ function GuestRegisterCard({ lead, onBack }: { lead: GuestLead; onBack: () => vo
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => markTouched("email")}
+            aria-invalid={!!show("email")}
             placeholder="vous@exemple.ma"
             autoComplete="username"
-            className="rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className={cn(
+              "rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none",
+              show("email") && "border-destructive",
+            )}
           />
+          {show("email") && (
+            <span className="text-xs font-medium text-destructive">{show("email")}</span>
+          )}
         </label>
 
         {mode === "signup" && (
@@ -210,10 +237,18 @@ function GuestRegisterCard({ lead, onBack }: { lead: GuestLead; onBack: () => vo
               inputMode="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              onBlur={() => markTouched("phone")}
+              aria-invalid={!!show("phone")}
               placeholder="+212 6 12 34 56 78"
               autoComplete="tel"
-              className="rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className={cn(
+                "rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none",
+                show("phone") && "border-destructive",
+              )}
             />
+            {show("phone") && (
+              <span className="text-xs font-medium text-destructive">{show("phone")}</span>
+            )}
           </label>
         )}
 
@@ -223,10 +258,18 @@ function GuestRegisterCard({ lead, onBack }: { lead: GuestLead; onBack: () => vo
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            onBlur={() => markTouched("password")}
+            aria-invalid={!!show("password")}
             placeholder="••••••••"
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            className="rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className={cn(
+              "rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none",
+              show("password") && "border-destructive",
+            )}
           />
+          {show("password") && (
+            <span className="text-xs font-medium text-destructive">{show("password")}</span>
+          )}
         </label>
 
         {info && <p className="text-sm font-medium text-primary">{info}</p>}

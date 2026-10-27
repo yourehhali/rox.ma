@@ -61,9 +61,10 @@ export function ClientProvider({
   });
 
   const createOrder = useCallback(
-    (input: Parameters<typeof ordersSvc.createOrder>[0]) => {
-      createOrderMut.mutate(input);
-    },
+    // mutateAsync (not mutate): the wizard must await the server verdict and
+    // only celebrate on success. Rejections also trip the global MutationCache
+    // toast, so a failed order is never silent again.
+    (input: Parameters<typeof ordersSvc.createOrder>[0]) => createOrderMut.mutateAsync(input),
     [createOrderMut],
   );
 
