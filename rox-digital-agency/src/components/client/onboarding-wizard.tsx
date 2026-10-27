@@ -33,7 +33,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Lead contact handed back to the caller after a successful guest submit. */
 export type GuestLead = { name: string; email: string; phone: string };
 
-type FieldKey = "activity" | "services" | "title" | "description" | "name" | "email" | "phone";
+type FieldKey =
+  "activity" | "services" | "title" | "description" | "name" | "email" | "phone" | "deadline";
 
 type WizardProps = {
   onComplete: (orderId?: string, lead?: GuestLead) => void;
@@ -129,6 +130,17 @@ export function OnboardingWizard({
   // attempted, so feedback never nags while someone is still typing.
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
+  // The deadline must sit at least 5 days out; compared against local midnight
+  // so the cutoff is date-based, not time-of-day based.
+  const minDeadline = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 5);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  // `<input type="date">` min attribute — greys out earlier days in the picker.
+  const minDeadlineAttr = `${minDeadline.getFullYear()}-${String(minDeadline.getMonth() + 1).padStart(2, "0")}-${String(minDeadline.getDate()).padStart(2, "0")}`;
+
   const fieldErrors = useMemo<Partial<Record<FieldKey, string>>>(() => {
     const e: Partial<Record<FieldKey, string>> = {};
     if (!activity.trim()) e.activity = "Décrivez votre activité.";
@@ -142,14 +154,19 @@ export function OnboardingWizard({
     const t = phone.trim();
     if (!t) e.phone = "Le téléphone est requis.";
     else if (!PHONE_RE.test(t)) e.phone = "Format invalide (8 à 15 chiffres, « + » optionnel).";
+    if (deadline) {
+      const d = new Date(`${deadline}T00:00:00`);
+      if (Number.isNaN(d.getTime())) e.deadline = "Date invalide.";
+      else if (d < minDeadline) e.deadline = "Le délai souhaité doit être dans au moins 5 jours.";
+    }
     return e;
-  }, [activity, services, title, description, isGuest, name, email, phone]);
+  }, [activity, services, title, description, isGuest, name, email, phone, deadline, minDeadline]);
 
   const stepKeys = (): FieldKey[] =>
     step === 0
       ? ["activity", "services"]
       : step === 1
-        ? ["title", "description"]
+        ? ["title", "description", "deadline"]
         : isGuest
           ? ["name", "email", "phone"]
           : ["phone"];
@@ -396,8 +413,23 @@ export function OnboardingWizard({
                   ))}
                 </select>
               </Field>
-              <Field label="Délai souhaité">
-                <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+              <Field
+                label="Délai souhaité"
+                hint="Optionnel — au moins 5 jours à partir d'aujourd'hui."
+                error={showErr("deadline")}
+              >
+                <Input
+                  type="date"
+                  value={deadline}
+                  min={minDeadlineAttr}
+                  onChange={(e) => {
+                    setDeadline(e.target.value);
+                    setError(null);
+                  }}
+                  onBlur={() => markTouched("deadline")}
+                  aria-invalid={!!showErr("deadline")}
+                  className={cn(showErr("deadline") && "border-destructive")}
+                />
               </Field>
             </div>
 
