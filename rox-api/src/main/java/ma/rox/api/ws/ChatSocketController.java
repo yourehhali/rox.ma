@@ -53,18 +53,17 @@ public class ChatSocketController {
     if (!(principal instanceof StompPrincipal sp)) throw ApiException.unauthorized("Session requise.");
     RoxPrincipal p = sp.rox();
     Order o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Commande"));
-
+    if (o.getClient() == null) {
+      throw ApiException.badRequest("Aucun client associé à cette demande.");
+    }
     String sender = p.role() == Role.ADMIN ? "rep" : "client";
     String clientId = p.role() == Role.ADMIN ? o.getClient().getId() : p.id();
     if (p.role() == Role.CLIENT && !o.getClient().getId().equals(p.id())) {
       throw ApiException.forbidden();
     }
     // Reuse the REST path so event publishing + notification fanout are uniform.
-    Message m = portal.sendMessage(clientId, sender, body.text(), orderId);
-    // Explicit broadcast (PortalService also publishes MessagePosted → the
-    // listener re-broadcasts; keeping both paths means the sender sees their
-    // message immediately even if event wiring is bypassed for a caller).
-    notifier.broadcastOrder(orderId, "/messages", portal.toDto(m));
+    // PortalService.sendMessage also broadcasts to the client-scoped chat room.
+    portal.sendMessage(clientId, sender, body.text(), orderId);
   }
 
   @MessageMapping("/orders/{orderId}/typing")

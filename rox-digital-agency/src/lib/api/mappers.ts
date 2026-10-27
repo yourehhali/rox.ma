@@ -56,7 +56,7 @@ type RawOrder = {
   requests: RawChangeRequest[];
   history: RawServiceHistoryItem[];
 };
-type RawClientRef = { id: string; name: string; email: string };
+type RawClientRef = { id: string | null; name: string | null; email: string | null };
 type RawAdminOrder = { order: RawOrder; client: RawClientRef };
 type RawMessage = {
   id: string;
@@ -111,7 +111,7 @@ export function mapOrder(raw: RawOrder): Order {
 }
 
 export function mapClientRef(raw: RawClientRef): ClientRef {
-  return { id: raw.id, name: raw.name, email: raw.email };
+  return { id: raw.id ?? null, name: raw.name ?? null, email: raw.email ?? null };
 }
 
 export function mapAdminOrder(raw: RawAdminOrder): AdminOrder {

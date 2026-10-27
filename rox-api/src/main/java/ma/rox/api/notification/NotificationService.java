@@ -26,12 +26,19 @@ public class NotificationService {
   @Transactional
   public Notification notify(String role, String recipientId, String kind, String orderId,
                               String title, String body) {
+    return notify(role, recipientId, kind, orderId, null, title, body);
+  }
+
+  @Transactional
+  public Notification notify(String role, String recipientId, String kind, String orderId,
+                              String clientId, String title, String body) {
     Notification n = new Notification();
     n.setId(prefixed("n"));
     n.setRecipientRole(role);
     n.setRecipientId(recipientId);
     n.setKind(kind);
     n.setOrderId(orderId);
+    n.setClientId(clientId);
     n.setTitle(title);
     n.setBody(body);
     n.setCreatedAt(OffsetDateTime.now());
@@ -91,6 +98,12 @@ public class NotificationService {
   @Transactional
   public int markAllRead(RoxPrincipal p) {
     return repo.markAllRead(p.role().name(), recipientIdFor(p));
+  }
+
+  /** Mark a subset read by kind and (optionally) owning client, for unread-badge sync. */
+  @Transactional
+  public int markAllRead(RoxPrincipal p, String kind, String clientId) {
+    return repo.markAllReadByKind(p.role().name(), recipientIdFor(p), kind, clientId);
   }
 
   @Transactional

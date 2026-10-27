@@ -22,9 +22,10 @@ export type BoardCard = {
   status: string;
   stage: BoardStage;
   createdAt: string;
-  clientId: string;
-  clientName: string;
-  clientEmail: string;
+  /** Null for an unclaimed guest lead. */
+  clientId: string | null;
+  clientName: string | null;
+  clientEmail: string | null;
 };
 
 export type StageHistoryEntry = {

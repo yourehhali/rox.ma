@@ -11,6 +11,7 @@ import type {
   AdminStats,
   CallBooking,
   ChangeRequest,
+  ClientRef,
   ClientUser,
   Order,
   OrderPhase,
@@ -27,8 +28,8 @@ import * as analyticsSvc from "@/services/analytics";
 import { keys } from "./queries/keys";
 
 export type ClientSnapshot = { user: ClientUser; data: PortalData };
-export type OpenRequest = { client: ClientUser; order: Order; request: ChangeRequest };
-export type PendingBooking = { client: ClientUser; booking: CallBooking };
+export type OpenRequest = { client: ClientRef; order: Order; request: ChangeRequest };
+export type PendingBooking = { client: ClientRef; booking: CallBooking };
 
 export function useAdminPortal(range: TrafficRange = "12M") {
   const queryClient = useQueryClient();

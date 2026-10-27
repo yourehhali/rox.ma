@@ -58,6 +58,8 @@ public class SecurityConfig {
             .requestMatchers("/auth/client/signup", "/auth/client/login", "/auth/client/refresh",
                           "/auth/client/verify", "/auth/client/resend-otp",
                           "/auth/admin/login", "/auth/admin/refresh").permitAll()
+            // Public lead capture (guest order wizard).
+            .requestMatchers(HttpMethod.POST, "/orders/guest").permitAll()
             .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/actuator/**").permitAll()
             .requestMatchers("/ws/**", "/topic/**", "/queue/**", "/app/**").permitAll()
             .requestMatchers(HttpMethod.GET, "/portfolio", "/portfolio/*").permitAll()

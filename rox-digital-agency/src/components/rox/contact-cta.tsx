@@ -1,42 +1,20 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "@tanstack/react-router";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { useSiteContent } from "@/hooks/use-site-content";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
+import { OnboardingWizard, type GuestLead } from "@/components/client/onboarding-wizard";
+import * as auth from "@/services/auth";
+import { ApiRequestError } from "@/lib/api/http";
 
-// The public contact form has no dedicated backend endpoint yet, so we
-// compose the message client-side and hand it to the visitor's mail client
-// via a `mailto:` URL. The admin's email is read from `SiteInfo.email` so it
-// stays updatable from the dashboard without a redeploy. If the admin hasn't
-// configured an email yet, we render the onboarding CTA instead of a form
-// that would silently drop the message.
+const PHONE_RE = /^\+?[0-9]{8,15}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,200}$/;
+
+// Public contact intake. Instead of the old `mailto:` form (which never reached
+// the dashboard), we run the 3-step guest wizard: it files the request as an
+// unclaimed lead, then invites the visitor to register — signup claims the lead
+// by email so they land in the portal with the order already there.
 export function ContactCta() {
-  const { info } = useSiteContent();
-  const [submitted, setSubmitted] = useState(false);
-  const hasEmail = Boolean(info.email);
-
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!hasEmail) return;
-    const fd = new FormData(e.currentTarget);
-    const nom = String(fd.get("nom") ?? "").trim();
-    const entreprise = String(fd.get("entreprise") ?? "").trim();
-    const contact = String(fd.get("contact") ?? "").trim();
-    const message = String(fd.get("message") ?? "").trim();
-    const subject = encodeURIComponent(`Demande de devis — ${nom || "Nouveau prospect"}`);
-    const body = encodeURIComponent(
-      [
-        `Nom : ${nom}`,
-        entreprise ? `Entreprise : ${entreprise}` : null,
-        `Contact : ${contact}`,
-        "",
-        message,
-      ]
-        .filter((line) => line !== null)
-        .join("\n"),
-    );
-    window.location.href = `mailto:${info.email}?subject=${subject}&body=${body}`;
-    setSubmitted(true);
-  };
+  const [lead, setLead] = useState<GuestLead | null>(null);
 
   return (
     <section className="border-y border-border bg-card pt-32 pb-20 sm:pt-40 sm:pb-24">
@@ -68,107 +46,226 @@ export function ContactCta() {
           </div>
 
           <div className="rounded-xl border border-border bg-background p-6 sm:p-8">
-            {!hasEmail ? (
-              <div className="flex h-full flex-col items-center justify-center gap-4 py-10 text-center">
-                <h2 className="font-display text-lg font-semibold">
-                  Démarrer votre projet avec ROX
-                </h2>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Créez votre espace client pour décrire votre besoin, suivre l'avancement de votre
-                  commande et échanger directement avec l'équipe.
-                </p>
-                <Link
-                  to="/account"
-                  className="btn-glass-primary mt-2 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-primary-foreground"
-                >
-                  Créer mon compte
-                  <ArrowRight size={16} />
-                </Link>
-              </div>
-            ) : submitted ? (
-              <div className="flex h-full flex-col items-center justify-center gap-3 py-10 text-center">
-                <CheckCircle2 size={40} className="text-primary" strokeWidth={1.5} />
-                <h2 className="font-display text-lg font-semibold">
-                  Votre logiciel mail est ouvert
-                </h2>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Il ne vous reste plus qu'à cliquer sur <strong>Envoyer</strong>. Si la fenêtre
-                  n'est pas apparue, écrivez-nous directement à{" "}
-                  <a
-                    href={`mailto:${info.email}`}
-                    className="text-primary underline-offset-4 hover:underline"
-                  >
-                    {info.email}
-                  </a>
-                  .
-                </p>
-                <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-                  Pour un suivi en temps réel de votre commande, créez votre{" "}
-                  <Link to="/account" className="text-primary underline-offset-4 hover:underline">
-                    espace client
-                  </Link>
-                  .
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setSubmitted(false)}
-                  className="mt-2 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                >
-                  Modifier ma demande
-                </button>
-              </div>
+            {lead ? (
+              <GuestRegisterCard lead={lead} onBack={() => setLead(null)} />
             ) : (
-              <form onSubmit={onSubmit} className="flex flex-col gap-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="flex flex-col gap-1.5 text-sm font-medium">
-                    Nom
-                    <input
-                      required
-                      name="nom"
-                      placeholder="Votre nom"
-                      className="rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-sm font-medium">
-                    Entreprise
-                    <input
-                      name="entreprise"
-                      placeholder="Nom de votre activité"
-                      className="rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                    />
-                  </label>
-                </div>
-                <label className="flex flex-col gap-1.5 text-sm font-medium">
-                  Email ou téléphone
-                  <input
-                    required
-                    name="contact"
-                    placeholder="ex. contact@monentreprise.ma"
-                    className="rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5 text-sm font-medium">
-                  Votre projet
-                  <textarea
-                    required
-                    name="message"
-                    rows={4}
-                    placeholder="Votre activité, ce que vous vendez, ce que vous attendez du site…"
-                    className="resize-none rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                  />
-                </label>
-                <button
-                  type="submit"
-                  className="btn-glass-primary mt-2 inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-primary-foreground"
-                >
-                  Envoyer ma demande
-                  <ArrowRight size={16} />
-                </button>
-              </form>
+              <OnboardingWizard
+                mode="guest"
+                onComplete={(_orderId, result) =>
+                  setLead(result ?? { name: "", email: "", phone: "" })
+                }
+              />
             )}
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function GuestRegisterCard({ lead, onBack }: { lead: GuestLead; onBack: () => void }) {
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<"signup" | "login">("signup");
+  const [name, setName] = useState(lead.name);
+  const [email, setEmail] = useState(lead.email);
+  const [phone, setPhone] = useState(lead.phone);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const toPortal = () => navigate({ to: "/account" });
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setInfo(null);
+
+    if (!EMAIL_RE.test(email.trim())) {
+      setError("Adresse e-mail invalide.");
+      return;
+    }
+    if (mode === "signup") {
+      if (name.trim().length < 2) {
+        setError("Indiquez votre nom.");
+        return;
+      }
+      if (!PHONE_RE.test(phone.trim())) {
+        setError("Téléphone invalide (8 à 15 chiffres, « + » optionnel).");
+        return;
+      }
+      if (!PASSWORD_RE.test(password)) {
+        setError(
+          "Mot de passe trop faible : min. 8 caractères avec majuscule, minuscule et chiffre.",
+        );
+        return;
+      }
+    }
+
+    setBusy(true);
+    try {
+      if (mode === "signup") {
+        // Signup claims the guest lead server-side (matched by email).
+        await auth.signupClient({
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          password,
+        });
+      } else {
+        // Login also claims any matching unclaimed lead.
+        await auth.loginClient({ email: email.trim(), password });
+      }
+      toPortal();
+    } catch (err) {
+      setBusy(false);
+      if (err instanceof ApiRequestError && err.code === "conflict" && mode === "signup") {
+        setMode("login");
+        setInfo("Un compte existe déjà avec cet e-mail. Connectez-vous pour retrouver votre demande.");
+        return;
+      }
+      if (
+        err instanceof ApiRequestError &&
+        (err.code === "unauthorized" || err.status === 401) &&
+        mode === "login"
+      ) {
+        setError("E-mail ou mot de passe incorrect.");
+        return;
+      }
+      setError(err instanceof Error && err.message ? err.message : "Une erreur est survenue.");
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-col items-center gap-2 text-center">
+        <CheckCircle2 size={40} className="text-primary" strokeWidth={1.5} />
+        <h2 className="font-display text-lg font-semibold">Votre demande est bien reçue</h2>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Créez votre espace client pour la retrouver, suivre son avancement et échanger avec
+          l'équipe. Utilisez le même e-mail que votre demande.
+        </p>
+      </div>
+
+      <div className="mb-5 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 text-sm font-medium">
+        <button
+          type="button"
+          onClick={() => {
+            setMode("signup");
+            setError(null);
+            setInfo(null);
+          }}
+          className={`rounded-md py-1.5 transition-colors ${
+            mode === "signup" ? "bg-background shadow" : "text-muted-foreground"
+          }`}
+        >
+          Créer un compte
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("login");
+            setError(null);
+            setInfo(null);
+          }}
+          className={`rounded-md py-1.5 transition-colors ${
+            mode === "login" ? "bg-background shadow" : "text-muted-foreground"
+          }`}
+        >
+          Se connecter
+        </button>
+      </div>
+
+      <form onSubmit={submit} className="space-y-4">
+        {mode === "signup" && (
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            Nom complet
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Votre nom"
+              autoComplete="name"
+              className="rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            />
+          </label>
+        )}
+
+        <label className="flex flex-col gap-1.5 text-sm font-medium">
+          E-mail
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="vous@exemple.ma"
+            autoComplete="username"
+            className="rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+          />
+        </label>
+
+        {mode === "signup" && (
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            Téléphone
+            <input
+              type="tel"
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+212 6 12 34 56 78"
+              autoComplete="tel"
+              className="rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            />
+          </label>
+        )}
+
+        <label className="flex flex-col gap-1.5 text-sm font-medium">
+          Mot de passe
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            className="rounded-md border border-input bg-card px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+          />
+        </label>
+
+        {info && <p className="text-sm font-medium text-primary">{info}</p>}
+        {error && (
+          <p role="alert" className="text-sm font-medium text-destructive">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={busy}
+          className="btn-glass-primary mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        >
+          {busy ? (
+            <>
+              <Loader2 size={16} className="animate-spin" /> Un instant…
+            </>
+          ) : (
+            <>
+              {mode === "signup" ? "Créer mon compte" : "Se connecter"}
+              <ArrowRight size={16} />
+            </>
+          )}
+        </button>
+      </form>
+
+      <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-1 underline-offset-4 hover:text-foreground hover:underline"
+        >
+          <ArrowLeft size={13} /> Modifier ma demande
+        </button>
+        <Link to="/account" className="underline-offset-4 hover:text-foreground hover:underline">
+          Plus tard
+        </Link>
+      </div>
+    </div>
   );
 }

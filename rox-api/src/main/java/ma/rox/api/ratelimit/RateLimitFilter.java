@@ -55,6 +55,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         new Rule("verify-otp",    "POST", "/auth/client/verify", 10,             Duration.ofHours(1)),
         new Rule("resend-otp",    "POST", "/auth/client/resend-otp", 3,          Duration.ofHours(1)),
         new Rule("contact",       "POST", "/contact",            contactPerMinute, Duration.ofMinutes(1)),
+        new Rule("guest-order",   "POST", "/orders/guest",       contactPerMinute, Duration.ofMinutes(1)),
         new Rule("message",       "POST", "/messages",           contactPerMinute, Duration.ofMinutes(1)));
   }
 

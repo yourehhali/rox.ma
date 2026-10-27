@@ -15,9 +15,15 @@ import ma.rox.api.auth.ClientAccount;
 public class Order {
   @Id private String id;
 
-  @ManyToOne(fetch = FetchType.EAGER, optional = false)
+  /** Null for unclaimed guest leads; attached to an account at signup/login. */
+  @ManyToOne(fetch = FetchType.EAGER, optional = true)
   @JoinColumn(name = "client_id")
   private ClientAccount client;
+
+  // Lead contact details, captured before an account exists so signup can claim by email.
+  @Column(name = "client_email") private String clientEmail;
+  @Column(name = "client_name") private String clientName;
+  @Column(name = "client_phone") private String clientPhone;
 
   @Column(nullable = false) private String title;
   @Column(nullable = false) private String service;

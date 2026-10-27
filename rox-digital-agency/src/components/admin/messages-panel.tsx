@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { PhoneCall, Send } from "lucide-react";
 import { formatTime } from "@/components/admin/data";
 import type { AdminPortal } from "@/hooks/use-admin-portal";
 import { useChatTyping } from "@/hooks/use-chat-typing";
+import { keys } from "@/hooks/queries/keys";
 import { getCachedUser } from "@/lib/api/token-store";
+import { subscribe } from "@/lib/api/socket";
+import { markAllRead } from "@/services/notifications";
 import type { AdminUser } from "@/lib/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,11 +36,29 @@ export function MessagesPanel({
   const [draft, setDraft] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const adminId = getCachedUser<AdminUser>("admin")?.id ?? null;
+  const queryClient = useQueryClient();
   const { typingNames, ping, stop } = useChatTyping("admin", activeId, adminId);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [snapshot?.data.messages.length, activeId, typingNames.length]);
+
+  // Instant delivery: join the active client's chat room so a reply (or a new
+  // inbound message) refreshes the thread without waiting on the bell.
+  useEffect(() => {
+    if (!activeId) return;
+    return subscribe("admin", `/topic/chats/${activeId}/messages`, () => {
+      queryClient.invalidateQueries({ queryKey: keys.clients.portalOf(activeId) });
+      queryClient.invalidateQueries({ queryKey: keys.messages.all });
+    });
+  }, [activeId, queryClient]);
+
+  // Opening a thread clears that client's unread message count for the bell.
+  useEffect(() => {
+    if (!activeId) return;
+    void markAllRead("admin", { kind: "message", clientId: activeId });
+    queryClient.invalidateQueries({ queryKey: keys.notifications.all });
+  }, [activeId, queryClient]);
 
   if (clients.length === 0) {
     return (

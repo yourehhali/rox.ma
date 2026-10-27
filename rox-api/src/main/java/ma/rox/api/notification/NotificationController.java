@@ -47,8 +47,13 @@ public class NotificationController {
   }
 
   @PostMapping("/mark-all-read")
-  public UnreadResponse markAll() {
-    int affected = svc.markAllRead(me.require());
+  public UnreadResponse markAll(
+      @RequestParam(name = "kind", required = false) String kind,
+      @RequestParam(name = "clientId", required = false) String clientId) {
+    var p = me.require();
+    int affected = (kind == null && clientId == null)
+        ? svc.markAllRead(p)
+        : svc.markAllRead(p, kind, clientId);
     return new UnreadResponse(affected);
   }
 

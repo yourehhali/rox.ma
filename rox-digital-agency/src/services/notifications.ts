@@ -32,8 +32,18 @@ export async function markRead(role: Role, id: string): Promise<void> {
   await apiFetch<void>(`/notifications/${id}/read`, { method: "PATCH" }, { role });
 }
 
-export async function markAllRead(role: Role): Promise<void> {
-  await apiFetch<{ unread: number }>("/notifications/mark-all-read", { method: "POST" }, { role });
+export async function markAllRead(
+  role: Role,
+  opts: { kind?: string; clientId?: string } = {},
+): Promise<void> {
+  const query: Record<string, string | undefined> = {};
+  if (opts.kind) query["kind"] = opts.kind;
+  if (opts.clientId) query["clientId"] = opts.clientId;
+  await apiFetch<{ unread: number }>(
+    "/notifications/mark-all-read",
+    { method: "POST" },
+    { query, role },
+  );
 }
 
 export async function deleteNotification(role: Role, id: string): Promise<void> {

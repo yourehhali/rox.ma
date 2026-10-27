@@ -40,6 +40,13 @@ public class OrdersController {
     return ResponseEntity.status(HttpStatus.CREATED).body(svc.toDto(o));
   }
 
+  /** Public lead capture: no account required. Claimed by email at signup/login. */
+  @PostMapping("/guest")
+  public ResponseEntity<OrderDto> createGuest(@Valid @RequestBody GuestOrderRequest input) {
+    Order o = svc.createGuestOrder(input);
+    return ResponseEntity.status(HttpStatus.CREATED).body(svc.toDto(o));
+  }
+
   @GetMapping("/{id}")
   public OrderDto get(@PathVariable String id) {
     Order o = svc.requireOrder(id);
@@ -78,7 +85,9 @@ public class OrdersController {
   public ResponseEntity<ChangeRequestDto> addRequest(@PathVariable String id, @RequestBody Map<String, String> body) {
     RoxPrincipal p = me.requireClient();
     Order existing = svc.requireOrder(id);
-    if (!existing.getClient().getId().equals(p.id())) throw ApiException.forbidden();
+    if (existing.getClient() == null || !existing.getClient().getId().equals(p.id())) {
+      throw ApiException.forbidden();
+    }
     String type = body.getOrDefault("type", "update");
     String note = body.getOrDefault("note", "");
     ChangeRequest r = svc.addRequest(id, type, note);
@@ -98,6 +107,6 @@ public class OrdersController {
   private void requireAccessible(Order o) {
     RoxPrincipal p = me.require();
     if (p.role() == Role.ADMIN) return;
-    if (!o.getClient().getId().equals(p.id())) throw ApiException.forbidden();
+    if (o.getClient() == null || !o.getClient().getId().equals(p.id())) throw ApiException.forbidden();
   }
 }

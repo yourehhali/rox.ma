@@ -179,6 +179,8 @@ export function ClientPortal({ user, onLogout }: PortalProps) {
             setSelectedId(null);
           }}
           hasOrders={data.orders.length > 0}
+          defaultName={user.name}
+          defaultEmail={user.email}
         />
       )}
     </div>
@@ -291,10 +293,14 @@ function WizardOverlay({
   onClose,
   onDone,
   hasOrders,
+  defaultName,
+  defaultEmail,
 }: {
   onClose: () => void;
   onDone: () => void;
   hasOrders: boolean;
+  defaultName: string;
+  defaultEmail: string;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm sm:p-8">
@@ -309,7 +315,13 @@ function WizardOverlay({
             <X size={18} />
           </button>
         </div>
-        <OnboardingWizard onComplete={onDone} onCancel={hasOrders ? onClose : undefined} />
+        <OnboardingWizard
+          mode="authed"
+          defaultName={defaultName}
+          defaultEmail={defaultEmail}
+          onComplete={onDone}
+          onCancel={hasOrders ? onClose : undefined}
+        />
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface OrderRepo extends JpaRepository<Order, String> {
   List<Order> findByClientIdOrderByCreatedAtDesc(String clientId);
+  List<Order> findByClientIdIsNullAndClientEmailIgnoreCase(String email);
   List<Order> findAllByOrderByCreatedAtDesc();
   long countByClientId(String clientId);
   long countByStatus(String status);

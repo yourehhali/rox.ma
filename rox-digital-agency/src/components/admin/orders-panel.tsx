@@ -68,7 +68,7 @@ export function OrdersPanel({ portal }: { portal: AdminPortal }) {
                 const status = orderStatusMeta[order.status];
                 return (
                   <TableRow key={order.id}>
-                    <TableCell className="pl-6 font-medium">{client.name}</TableCell>
+                    <TableCell className="pl-6 font-medium">{client.name || "Nouveau prospect"}</TableCell>
                     <TableCell>{order.title}</TableCell>
                     <TableCell className="text-muted-foreground">{order.service}</TableCell>
                     <TableCell>
@@ -112,7 +112,7 @@ function ManageOrder({
   onBack,
 }: {
   portal: AdminPortal;
-  clientId: string;
+  clientId: string | null;
   orderId: string;
   onBack: () => void;
 }) {
@@ -120,6 +120,7 @@ function ManageOrder({
   if (!found) return null;
   const { client, order } = found;
   const actions = portal.actions;
+  const cid = clientId ?? ""; // server derives the client from the order; keep actions' signature
   const currentIdx = phaseIndex(order.phase);
   const status = orderStatusMeta[order.status];
 
@@ -131,7 +132,7 @@ function ManageOrder({
         </Button>
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="font-normal">
-            {client.name}
+            {client.name || "Nouveau prospect"}
           </Badge>
           <span
             className={cn(
@@ -166,7 +167,7 @@ function ManageOrder({
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => actions.advance(clientId, orderId, p.id)}
+                      onClick={() => actions.advance(cid, orderId, p.id)}
                       className={cn(
                         "rounded-lg border p-2.5 text-left text-xs transition-colors",
                         current
@@ -200,7 +201,7 @@ function ManageOrder({
                   <li key={t.id}>
                     <button
                       type="button"
-                      onClick={() => actions.toggleTask(clientId, orderId, t.id)}
+                      onClick={() => actions.toggleTask(cid, orderId, t.id)}
                       className="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-2 text-left text-sm transition-colors hover:border-primary"
                     >
                       <span
@@ -237,7 +238,7 @@ function ManageOrder({
               {order.status === "active" ? (
                 <Button
                   className="w-full"
-                  onClick={() => actions.setStatus(clientId, orderId, "Terminé")}
+                  onClick={() => actions.setStatus(cid, orderId, "Terminé")}
                 >
                   <Check size={16} /> Marquer comme terminée
                 </Button>
@@ -245,7 +246,7 @@ function ManageOrder({
                 <Button
                   className="w-full"
                   variant="outline"
-                  onClick={() => actions.setStatus(clientId, orderId, "active")}
+                  onClick={() => actions.setStatus(cid, orderId, "active")}
                 >
                   <CircleDot size={16} /> Rouvrir la commande
                 </Button>
@@ -286,7 +287,7 @@ function ManageOrder({
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => actions.handleRequest(clientId, orderId, r.id)}
+                          onClick={() => actions.handleRequest(cid, orderId, r.id)}
                         >
                           Traiter
                         </Button>

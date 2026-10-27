@@ -24,21 +24,30 @@ public class NotificationListener {
 
   @EventListener
   public void onOrderCreated(OrderCreated e) {
-    notifier.notify(Role.ADMIN.name(), "admin", "order", e.orderId(),
+    notifier.notify(Role.ADMIN.name(), "admin", "order", e.orderId(), e.clientId(),
         "Nouvelle commande", e.title() + " — " + e.service());
+    // Guest leads have no owning client yet (clientId == null); the UI confirms those.
+    if (e.clientId() != null) {
+      notifier.notify(Role.CLIENT.name(), e.clientId(), "order", e.orderId(), e.clientId(),
+          "Commande reçue", "Nous avons bien reçu votre demande et revenons vers vous rapidement.");
+    }
   }
 
   @EventListener
   public void onPhaseAdvanced(PhaseAdvanced e) {
-    notifier.notify(Role.CLIENT.name(), e.clientId(), "phase", e.orderId(),
-        "Avancement", "Votre commande est passée à la phase « " + e.phase() + " ».");
+    if (e.clientId() != null) {
+      notifier.notify(Role.CLIENT.name(), e.clientId(), "phase", e.orderId(), e.clientId(),
+          "Avancement", "Votre commande est passée à la phase « " + e.phase() + " ».");
+    }
     broadcastAdmin("phase", e.orderId(), "Phase → " + e.phase());
   }
 
   @EventListener
   public void onStatusChanged(StatusChanged e) {
-    notifier.notify(Role.CLIENT.name(), e.clientId(), "order", e.orderId(),
-        "Statut mis à jour", "Statut : " + e.status());
+    if (e.clientId() != null) {
+      notifier.notify(Role.CLIENT.name(), e.clientId(), "order", e.orderId(), e.clientId(),
+          "Statut mis à jour", "Statut : " + e.status());
+    }
   }
 
   @EventListener
@@ -46,37 +55,44 @@ public class NotificationListener {
     String preview = e.textPreview() == null ? "" :
         (e.textPreview().length() > 120 ? e.textPreview().substring(0, 117) + "…" : e.textPreview());
     if ("client".equals(e.sender())) {
-      notifier.notify(Role.ADMIN.name(), "admin", "message", e.orderId(),
+      // Carry clientId so the admin can clear this thread's unread count on open.
+      notifier.notify(Role.ADMIN.name(), "admin", "message", e.orderId(), e.clientId(),
           "Nouveau message", preview);
     } else {
-      notifier.notify(Role.CLIENT.name(), e.clientId(), "message", e.orderId(),
-          "Réponse de l'équipe", preview);
+      if (e.clientId() != null) {
+        notifier.notify(Role.CLIENT.name(), e.clientId(), "message", e.orderId(), e.clientId(),
+            "Réponse de l'équipe", preview);
+      }
     }
-    notifier.broadcastOrder(e.orderId(), "/messages", e);
+    // Live delivery happens via PortalService.broadcastChat (client-scoped room).
   }
 
   @EventListener
   public void onBookingRequested(BookingRequested e) {
-    notifier.notify(Role.ADMIN.name(), "admin", "booking", null,
+    notifier.notify(Role.ADMIN.name(), "admin", "booking", null, e.clientId(),
         "Appel demandé", e.date() + " " + e.time());
   }
 
   @EventListener
   public void onBookingConfirmed(BookingConfirmed e) {
-    notifier.notify(Role.CLIENT.name(), e.clientId(), "booking", null,
-        "Créneau confirmé", e.date() + " " + e.time());
+    if (e.clientId() != null) {
+      notifier.notify(Role.CLIENT.name(), e.clientId(), "booking", null, e.clientId(),
+          "Créneau confirmé", e.date() + " " + e.time());
+    }
   }
 
   @EventListener
   public void onChangeRequestSubmitted(ChangeRequestSubmitted e) {
-    notifier.notify(Role.ADMIN.name(), "admin", "change_request", e.orderId(),
+    notifier.notify(Role.ADMIN.name(), "admin", "change_request", e.orderId(), e.clientId(),
         "Demande de modification", e.type());
   }
 
   @EventListener
   public void onChangeRequestHandled(ChangeRequestHandled e) {
-    notifier.notify(Role.CLIENT.name(), e.clientId(), "change_request", e.orderId(),
-        "Demande prise en compte", "L'équipe a traité votre demande.");
+    if (e.clientId() != null) {
+      notifier.notify(Role.CLIENT.name(), e.clientId(), "change_request", e.orderId(), e.clientId(),
+          "Demande prise en compte", "L'équipe a traité votre demande.");
+    }
   }
 
   @EventListener

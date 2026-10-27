@@ -32,14 +32,17 @@ public class PortalService {
   private final BookingRepo bookings;
   private final ClientRepo clients;
   private final ApplicationEventPublisher events;
+  private final ma.rox.api.notification.NotificationService notifier;
 
   public PortalService(OrderRepo orders, MessageRepo messages, BookingRepo bookings, ClientRepo clients,
-                       ApplicationEventPublisher events) {
+                       ApplicationEventPublisher events,
+                       ma.rox.api.notification.NotificationService notifier) {
     this.orders = orders;
     this.messages = messages;
     this.bookings = bookings;
     this.clients = clients;
     this.events = events;
+    this.notifier = notifier;
   }
 
   // ---------- Read / mapping ----------
@@ -56,7 +59,10 @@ public class PortalService {
 
   public AdminOrderDto toAdminDto(Order o) {
     ClientAccount c = o.getClient();
-    return new AdminOrderDto(toDto(o), new ClientRefDto(c.getId(), c.getName(), c.getEmail()));
+    ClientRefDto ref = c == null
+        ? new ClientRefDto(null, o.getClientName(), o.getClientEmail())
+        : new ClientRefDto(c.getId(), c.getName(), c.getEmail());
+    return new AdminOrderDto(toDto(o), ref);
   }
 
   public MessageDto toDto(Message m) {
@@ -140,6 +146,69 @@ public class PortalService {
     orders.save(o);
     events.publishEvent(new Events.OrderCreated(o.getId(), c.getId(), o.getTitle(), o.getService()));
     return o;
+  }
+
+  /** Public lead: an order with no owning account yet. Claimed by email at signup/login. */
+  @Transactional
+  public Order createGuestOrder(GuestOrderRequest input) {
+    Order o = new Order();
+    o.setId(prefixed("o"));
+    o.setClient(null);
+    o.setClientEmail(input.email().trim().toLowerCase());
+    o.setClientName(input.name().trim());
+    o.setClientPhone(input.phone().trim());
+    o.setTitle(input.title().trim());
+    o.setService(input.service().trim());
+    String desc = input.description() == null ? "" : input.description();
+    if (input.city() != null && !input.city().isBlank()) {
+      desc = desc + "\n\nVille : " + input.city().trim();
+    }
+    o.setDescription(desc);
+    o.setBudget(input.budget() == null ? "" : input.budget());
+    o.setDeadline(normalizeDeadline(input.deadline()));
+    o.setPhase("cadrage");
+    o.setStatus("active");
+    o.setStage("LEAD");
+    OffsetDateTime now = nowUtc();
+    o.setCreatedAt(now);
+
+    for (int i = 0; i < TASK_LABELS.size(); i++) {
+      OrderTask t = new OrderTask();
+      t.setId(prefixed("t"));
+      t.setOrder(o);
+      t.setLabel(TASK_LABELS.get(i));
+      t.setDone(false);
+      t.setUpdatedAt(now);
+      t.setPosition(i);
+      o.getTasks().add(t);
+    }
+    if (input.pastServices() != null) {
+      for (var hs : input.pastServices()) {
+        ServiceHistory sh = new ServiceHistory();
+        sh.setId(hs.id() == null || hs.id().isBlank() ? prefixed("sh") : hs.id());
+        sh.setOrder(o);
+        sh.setService(hs.service().trim());
+        sh.setYear(hs.year().trim());
+        sh.setOutcome(hs.outcome().trim());
+        o.getHistory().add(sh);
+      }
+    }
+    addEvent(o, "Brief reçu", now);
+    orders.save(o);
+    events.publishEvent(new Events.OrderCreated(o.getId(), null, o.getTitle(), o.getService()));
+    return o;
+  }
+
+  /** Attach every unclaimed lead matching this account's email. Returns the count claimed. */
+  @Transactional
+  public int claimLeadsForClient(ClientAccount c) {
+    List<Order> leads = orders.findByClientIdIsNullAndClientEmailIgnoreCase(c.getEmail());
+    for (Order o : leads) {
+      o.setClient(c);
+      // Keep the captured contact as-is; the owning client is now authoritative.
+    }
+    if (!leads.isEmpty()) orders.saveAll(leads);
+    return leads.size();
   }
 
   @Transactional
@@ -229,6 +298,8 @@ public class PortalService {
     String preview = text == null ? "" : (text.length() > 200 ? text.substring(0, 197) + "…" : text);
     String orderIdStr = saved.getOrder() == null ? null : saved.getOrder().getId();
     events.publishEvent(new Events.MessagePosted(saved.getId(), orderIdStr, c.getId(), sender, preview));
+    // Live delivery on the client-scoped chat room (the app's threads are keyed by client).
+    notifier.broadcastChat(c.getId(), "/messages", toDto(saved));
     return saved;
   }
 

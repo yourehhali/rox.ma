@@ -21,4 +21,12 @@ public interface NotificationRepo extends JpaRepository<Notification, String> {
   @Query("update Notification n set n.readAt = CURRENT_TIMESTAMP "
       + "where n.recipientRole = :role and n.recipientId = :id and n.readAt is null")
   int markAllRead(@Param("role") String role, @Param("id") String id);
+
+  @Modifying
+  @Query("update Notification n set n.readAt = CURRENT_TIMESTAMP "
+      + "where n.recipientRole = :role and n.recipientId = :id and n.readAt is null "
+      + "and (:kind is null or n.kind = :kind) "
+      + "and (:clientId is null or n.clientId = :clientId)")
+  int markAllReadByKind(@Param("role") String role, @Param("id") String id,
+                        @Param("kind") String kind, @Param("clientId") String clientId);
 }

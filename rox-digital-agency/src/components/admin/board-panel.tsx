@@ -183,7 +183,7 @@ function BoardCardView({ card, dragging = false }: { card: BoardCard; dragging?:
       )}
     >
       <p className="font-medium leading-snug">{card.title}</p>
-      <p className="truncate text-xs text-muted-foreground">{card.clientName}</p>
+      <p className="truncate text-xs text-muted-foreground">{card.clientName || "Nouveau prospect"}</p>
       <div className="mt-1 flex flex-wrap items-center gap-1.5">
         {card.service && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">

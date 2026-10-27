@@ -17,6 +17,8 @@ public class Notification {
   /** message | booking | order | phase | stage | change_request | otp_sent */
   @Column(nullable = false) private String kind;
   @Column(name = "order_id") private String orderId;
+  /** Owning client for message/phase notifications; lets the admin mark one thread read. */
+  @Column(name = "client_id") private String clientId;
   @Column(nullable = false) private String title;
   @Column(nullable = false) private String body;
   @Column(name = "read_at") private OffsetDateTime readAt;

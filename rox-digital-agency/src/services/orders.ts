@@ -8,6 +8,7 @@ import type { Role } from "@/lib/api/token-store";
 import type {
   AdminOrder,
   ChangeRequest,
+  GuestOrderInput,
   NewOrderInput,
   Order,
   OrderPhase,
@@ -35,6 +36,20 @@ export async function createOrder(input: NewOrderInput): Promise<Order> {
     "/orders",
     { method: "POST", body: input },
     { role: "client" },
+  );
+  return mapOrder(raw);
+}
+
+/**
+ * Public guest order. `/orders/guest` falls under the `/orders` client-path
+ * prefix, so we must force `anonymous` to avoid attaching a (missing) client
+ * bearer. The server stores the order as an unclaimed lead keyed by email.
+ */
+export async function createGuestOrder(input: GuestOrderInput): Promise<Order> {
+  const raw = await apiFetch<RawOrder>(
+    "/orders/guest",
+    { method: "POST", body: input },
+    { anonymous: true },
   );
   return mapOrder(raw);
 }

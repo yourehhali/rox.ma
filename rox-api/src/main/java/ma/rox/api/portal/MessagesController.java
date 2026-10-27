@@ -51,9 +51,15 @@ public class MessagesController {
             List.of(new ma.rox.api.error.ApiError.FieldIssue("clientId", "required")));
       }
       sender = "rep";
-      clientId = adminClientId != null
-          ? adminClientId
-          : svc.requireOrder(req.orderId()).getClient().getId();
+      if (adminClientId != null) {
+        clientId = adminClientId;
+      } else {
+        Order o = svc.requireOrder(req.orderId());
+        if (o.getClient() == null) {
+          throw ApiException.badRequest("Aucun client associé à cette demande.");
+        }
+        clientId = o.getClient().getId();
+      }
     }
     Message m = svc.sendMessage(clientId, sender, req.text(), req.orderId());
     return ResponseEntity.status(HttpStatus.CREATED).body(svc.toDto(m));

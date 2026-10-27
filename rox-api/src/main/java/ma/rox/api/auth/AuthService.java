@@ -24,11 +24,13 @@ public class AuthService {
   private final PasswordEncoder encoder;
   private final JwtService jwt;
   private final VerificationOrchestrator verifier;
+  private final ma.rox.api.portal.PortalService portal;
   private final boolean verificationRequired;
   private final Duration gracePeriod;
 
   public AuthService(ClientRepo clients, AdminRepo admins, RefreshTokenRepo tokens,
                      PasswordEncoder encoder, JwtService jwt, VerificationOrchestrator verifier,
+                     ma.rox.api.portal.PortalService portal,
                      @Value("${rox.verification.required:false}") boolean verificationRequired,
                      @Value("${rox.verification.grace-hours:24}") long graceHours) {
     this.clients = clients;
@@ -37,6 +39,7 @@ public class AuthService {
     this.encoder = encoder;
     this.jwt = jwt;
     this.verifier = verifier;
+    this.portal = portal;
     this.verificationRequired = verificationRequired;
     this.gracePeriod = Duration.ofHours(graceHours);
   }
@@ -55,6 +58,9 @@ public class AuthService {
     c.setCreatedAt(nowUtc());
     c.setVerified(false);
     clients.save(c);
+
+    // Attach any guest leads this email left behind before registering.
+    portal.claimLeadsForClient(c);
 
     // Best-effort OTP dispatch (email + WhatsApp) so signup never fails on a send hiccup.
     verifier.dispatchSignupBestEffort(c.getEmail(), c.getPhone(), c.getName());
@@ -80,6 +86,8 @@ public class AuthService {
             "Veuillez vérifier votre email avant de continuer.");
       }
     }
+    // An existing account may have left a guest lead behind under this email.
+    portal.claimLeadsForClient(c);
     RoxPrincipal p = new RoxPrincipal(c.getId(), c.getEmail(), Role.CLIENT);
     return new AuthDtos.AuthSessionDto(
         issueAccess(p), issueRefresh(p, Role.CLIENT, c.getEmail()),

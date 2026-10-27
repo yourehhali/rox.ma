@@ -96,9 +96,10 @@ export type Order = {
 };
 
 export type ClientRef = {
-  id: string;
-  name: string;
-  email: string;
+  /** Null for an unclaimed guest lead (no ClientAccount yet). */
+  id: string | null;
+  name: string | null;
+  email: string | null;
 };
 
 export type AdminOrder = {
@@ -113,6 +114,24 @@ export type NewOrderInput = {
   budget: string;
   deadline: string;
   phone?: string;
+  pastServices: Omit<ServiceHistoryItem, "id">[];
+};
+
+/**
+ * Public guest-order payload — mirrors `PortalDtos.GuestOrderRequest`. The
+ * order is stored as an unclaimed lead keyed by `email`; signup/login claims
+ * it server-side.
+ */
+export type GuestOrderInput = {
+  name: string;
+  email: string;
+  phone: string;
+  city?: string | undefined;
+  title: string;
+  service: string;
+  description: string;
+  budget: string;
+  deadline: string;
   pastServices: Omit<ServiceHistoryItem, "id">[];
 };
 

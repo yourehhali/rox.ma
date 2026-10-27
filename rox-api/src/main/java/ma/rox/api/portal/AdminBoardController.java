@@ -85,8 +85,8 @@ public class AdminBoardController {
     h.setChangedAt(OffsetDateTime.now());
     history.save(h);
 
-    events.publishEvent(new Events.StageChanged(o.getId(), o.getClient().getId(), from, to,
-        me.require().id()));
+    events.publishEvent(new Events.StageChanged(o.getId(),
+        o.getClient() == null ? null : o.getClient().getId(), from, to, me.require().id()));
     notifier.broadcastAdmins("/admin/board",
         new ma.rox.api.events.NotificationListener.BoardEvent("stage", o.getId(), from + " → " + to));
     return toCard(o);
@@ -98,6 +98,8 @@ public class AdminBoardController {
         o.getDeadline(), o.getPhase(), o.getStatus(),
         o.getStage() == null ? "LEAD" : o.getStage(),
         o.getCreatedAt().toString(),
-        c.getId(), c.getName(), c.getEmail());
+        c == null ? null : c.getId(),
+        c == null ? o.getClientName() : c.getName(),
+        c == null ? o.getClientEmail() : c.getEmail());
   }
 }

@@ -192,7 +192,7 @@ export function OverviewPanel({
                     const status = orderStatusMeta[order.status];
                     return (
                       <TableRow key={order.id}>
-                        <TableCell className="pl-6 font-medium">{client.name}</TableCell>
+                        <TableCell className="pl-6 font-medium">{client.name || "Nouveau prospect"}</TableCell>
                         <TableCell className="text-muted-foreground">{order.title}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {phaseLabel(order.phase)}
@@ -239,7 +239,7 @@ export function OverviewPanel({
                   className="w-full rounded-lg border border-border p-3 text-left transition-colors hover:border-primary"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{client.name}</span>
+                    <span className="text-sm font-medium">{client.name || "Nouveau prospect"}</span>
                     <Badge variant="secondary" className="font-normal">
                       {request.type === "update" ? "Mise à jour" : "Modification"}
                     </Badge>

@@ -1,22 +1,20 @@
-import { useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, Plus, Trash2 } from "lucide-react";
+import { useContext, useMemo, useState, type ReactNode } from "react";
+import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { useClient } from "@/components/client/client-context";
+import { ClientContext } from "@/components/client/client-context";
+import { createGuestOrder } from "@/services/orders";
 import { SERVICES, uid, type ServiceHistoryItem } from "@/lib/client-store";
 import { useSiteContent } from "@/hooks/use-site-content";
 import { cn } from "@/lib/utils";
 
-const STEPS = [
-  "Votre activité",
-  "Services demandés",
-  "Détails de la commande",
-  "Historique des services",
-  "Coordonnées",
-  "Récapitulatif",
-];
+// Three-step wizard: a public visitor (guest mode) captures enough to store the
+// order as an unclaimed lead, then registers to claim it; an authenticated
+// client (authed mode) skips name/email (known from the account) and files the
+// order directly against their session.
+const STEPS = ["Votre projet", "Détails & budget", "Coordonnées"];
 
 const BUDGETS = [
   "2 000 – 3 000 DH",
@@ -28,17 +26,36 @@ const BUDGETS = [
 
 /** Loose E.164-ish phone check mirrored on the backend. */
 const PHONE_RE = /^\+?[0-9]{8,15}$/;
-const OTHER_PILL = "__other__";
+/** Basic email shape check; the backend `@Email` is the authority. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Lead contact handed back to the caller after a successful guest submit. */
+export type GuestLead = { name: string; email: string; phone: string };
 
 type WizardProps = {
-  onComplete: () => void;
+  onComplete: (orderId?: string, lead?: GuestLead) => void;
   onCancel?: (() => void) | undefined;
+  /** "guest" files a public lead; "authed" files against the current session. */
+  mode?: "guest" | "authed";
+  /** Authed mode: prefill (and hide) name/email from the account. */
+  defaultName?: string;
+  defaultEmail?: string;
 };
 
-export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
-  const { createOrder } = useClient();
+export function OnboardingWizard({
+  onComplete,
+  onCancel,
+  mode = "authed",
+  defaultName = "",
+  defaultEmail = "",
+}: WizardProps) {
+  const isGuest = mode === "guest";
+  // Read the context directly (rather than `useClient()`) so the wizard can run
+  // outside a ClientProvider in guest mode.
+  const clientCtx = useContext(ClientContext);
   const content = useSiteContent();
   const [step, setStep] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
   const [activity, setActivity] = useState("");
   const [goal, setGoal] = useState("");
@@ -50,6 +67,8 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
   const [budget, setBudget] = useState<string>(BUDGETS[0] ?? "À définir");
   const [deadline, setDeadline] = useState("");
   const [pastServices, setPastServices] = useState<ServiceHistoryItem[]>([]);
+  const [name, setName] = useState(defaultName);
+  const [email, setEmail] = useState(defaultEmail);
   const [phone, setPhone] = useState("");
   const [city, setCity] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +90,10 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
       const next = !open;
       if (!next) setServices((prev) => prev.filter((x) => !x.startsWith("Autre:")));
       else if (otherText.trim())
-        setServices((prev) => [...prev.filter((x) => !x.startsWith("Autre:")), `Autre: ${otherText.trim()}`]);
+        setServices((prev) => [
+          ...prev.filter((x) => !x.startsWith("Autre:")),
+          `Autre: ${otherText.trim()}`,
+        ]);
       return next;
     });
   };
@@ -94,23 +116,31 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
 
   const removePast = (id: string) => setPastServices((prev) => prev.filter((p) => p.id !== id));
 
-  const validateStep = (): boolean => {
-    if (step === 0 && !activity.trim()) return fail("Décrivez votre activité.");
-    if (step === 1 && services.length === 0) return fail("Sélectionnez au moins un service.");
-    if (step === 2 && (!title.trim() || !description.trim()))
-      return fail("Renseignez le titre et la description de la commande.");
-    if (step === 4) {
-      const t = phone.trim();
-      if (!t) return fail("Le téléphone est requis.");
-      if (!PHONE_RE.test(t)) return fail("Format de téléphone invalide (8 à 15 chiffres, « + » optionnel).");
-    }
-    return true;
-  };
-
   function fail(msg: string): boolean {
     setError(msg);
     return false;
   }
+
+  const validateStep = (): boolean => {
+    if (step === 0) {
+      if (!activity.trim()) return fail("Décrivez votre activité.");
+      if (services.length === 0) return fail("Sélectionnez au moins un service.");
+    }
+    if (step === 1 && (!title.trim() || !description.trim())) {
+      return fail("Renseignez le titre et la description du projet.");
+    }
+    if (step === 2) {
+      if (isGuest) {
+        if (name.trim().length < 2) return fail("Indiquez votre nom.");
+        if (!EMAIL_RE.test(email.trim())) return fail("Adresse e-mail invalide.");
+      }
+      const t = phone.trim();
+      if (!t) return fail("Le téléphone est requis.");
+      if (!PHONE_RE.test(t))
+        return fail("Format de téléphone invalide (8 à 15 chiffres, « + » optionnel).");
+    }
+    return true;
+  };
 
   const next = () => {
     if (!validateStep()) return;
@@ -123,23 +153,68 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
     setStep((s) => Math.max(s - 1, 0));
   };
 
-  const submit = () => {
-    if (!PHONE_RE.test(phone.trim())) {
-      setStep(4);
-      fail("Merci de renseigner un téléphone valide.");
+  const submit = async () => {
+    if (!validateStep()) return;
+    const cleanPast = pastServices.filter((p) => p.service.trim());
+    const baseDescription = description.trim();
+    // The wizard used to discard `activity`/`goal`; fold them into the free-text
+    // description so the lead carries the same context (authed path keeps the
+    // original NewOrderInput contract unchanged).
+    const composedDescription = isGuest
+      ? [
+          baseDescription,
+          activity.trim() ? `Activité : ${activity.trim()}` : null,
+          goal.trim() ? `Objectif : ${goal.trim()}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      : baseDescription;
+
+    if (isGuest) {
+      setSubmitting(true);
+      try {
+        const order = await createGuestOrder({
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          city: city.trim() || undefined,
+          title: title.trim(),
+          service: services.join(" · "),
+          description: composedDescription,
+          budget,
+          deadline: deadline || "À convenir",
+          pastServices: cleanPast,
+        });
+        onComplete(order.id, {
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+        });
+      } catch (err) {
+        fail(err instanceof Error && err.message ? err.message : "Envoi impossible. Réessayez.");
+        setSubmitting(false);
+      }
       return;
     }
-    const cleanPast = pastServices.filter((p) => p.service.trim());
-    createOrder({
+
+    if (!clientCtx) {
+      fail("Session expirée — reconnectez-vous pour envoyer votre demande.");
+      return;
+    }
+    clientCtx.createOrder({
       title: title.trim(),
       service: services.join(" · "),
-      description: description.trim(),
+      description: composedDescription,
       budget,
       deadline: deadline || "À convenir",
       phone: phone.trim(),
       pastServices: cleanPast,
     });
     onComplete();
+  };
+
+  const goSubmit = () => {
+    void submit();
   };
 
   return (
@@ -157,14 +232,17 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
 
       <div className="p-6">
         {step === 0 && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <Field
               label="Votre activité"
               hint="Le nom et le type d'activité (ex. restaurant, cabinet, boutique)."
             >
               <Input
                 value={activity}
-                onChange={(e) => setActivity(e.target.value)}
+                onChange={(e) => {
+                  setActivity(e.target.value);
+                  setError(null);
+                }}
                 placeholder="Ex. Boutique de vêtements à Oujda"
               />
             </Field>
@@ -176,66 +254,66 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
                 placeholder="Ex. Avoir un site vitrine moderne et apparaître en premier sur Google à Oujda."
               />
             </Field>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Quels services vous intéressent ?</p>
+              <div className="flex flex-wrap gap-2">
+                {catalogue.map((s) => {
+                  const selected = services.includes(s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => toggleService(s)}
+                      aria-pressed={selected}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                        selected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {selected && <Check size={14} />}
+                      {s}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={toggleOther}
+                  aria-pressed={otherOpen}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border border-dashed px-3.5 py-1.5 text-sm font-medium transition-colors",
+                    otherOpen
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {otherOpen ? <Check size={14} /> : <Plus size={14} />}
+                  Autre / précise-le
+                </button>
+              </div>
+              {otherOpen && (
+                <Input
+                  autoFocus
+                  value={otherText}
+                  onChange={(e) => updateOtherText(e.target.value)}
+                  placeholder="Décrivez le service dont vous avez besoin…"
+                  className="mt-2"
+                />
+              )}
+            </div>
           </div>
         )}
 
         {step === 1 && (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Quels services vous intéressent ?</p>
-            <div className="flex flex-wrap gap-2">
-              {catalogue.map((s) => {
-                const selected = services.includes(s);
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => toggleService(s)}
-                    aria-pressed={selected}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-                      selected
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {selected && <Check size={14} />}
-                    {s}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={toggleOther}
-                aria-pressed={otherOpen}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border border-dashed px-3.5 py-1.5 text-sm font-medium transition-colors",
-                  otherOpen
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {otherOpen ? <Check size={14} /> : <Plus size={14} />}
-                Autre / précise-le
-              </button>
-            </div>
-            {otherOpen && (
-              <Input
-                autoFocus
-                value={otherText}
-                onChange={(e) => updateOtherText(e.target.value)}
-                placeholder="Décrivez le service dont vous avez besoin…"
-                className="mt-2"
-              />
-            )}
-          </div>
-        )}
-
-        {step === 2 && (
           <div className="space-y-4">
-            <Field label="Titre de la commande">
+            <Field label="Titre du projet">
               <Input
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  setError(null);
+                }}
                 placeholder="Ex. Site vitrine + SEO local"
               />
             </Field>
@@ -246,7 +324,10 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
               <Textarea
                 rows={4}
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  setError(null);
+                }}
                 placeholder="Décrivez votre projet…"
               />
             </Field>
@@ -265,105 +346,151 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
                 </select>
               </Field>
               <Field label="Délai souhaité">
-                <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-              </Field>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Services déjà commandés auparavant (optionnel).
-              </p>
-              <Button type="button" variant="outline" size="sm" onClick={addPast}>
-                <Plus size={14} /> Ajouter
-              </Button>
-            </div>
-            {pastServices.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-                Aucun service ajouté pour l'instant.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {pastServices.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3"
-                  >
-                    <Input
-                      className="min-w-[8rem] flex-1"
-                      placeholder="Service"
-                      value={p.service}
-                      onChange={(e) => updatePast(p.id, { service: e.target.value })}
-                    />
-                    <Input
-                      className="w-24"
-                      placeholder="Année"
-                      value={p.year}
-                      onChange={(e) => updatePast(p.id, { year: e.target.value })}
-                    />
-                    <Input
-                      className="min-w-[8rem] flex-1"
-                      placeholder="Résultat / commentaire"
-                      value={p.outcome}
-                      onChange={(e) => updatePast(p.id, { outcome: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removePast(p.id)}
-                      aria-label="Retirer"
-                      className="rounded p-1.5 text-muted-foreground transition-colors hover:text-destructive"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Téléphone" hint="Requis. Format international, ex. +212 6 12 34 56 78.">
                 <Input
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+212…"
-                  inputMode="tel"
-                  autoComplete="tel"
+                  type="date"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
                 />
               </Field>
-              <Field label="Ville" hint="Optionnel.">
-                <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Oujda" />
-              </Field>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Services déjà commandés auparavant (optionnel).
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={addPast}>
+                  <Plus size={14} /> Ajouter
+                </Button>
+              </div>
+              {pastServices.length > 0 && (
+                <div className="space-y-3">
+                  {pastServices.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3"
+                    >
+                      <Input
+                        className="min-w-[8rem] flex-1"
+                        placeholder="Service"
+                        value={p.service}
+                        onChange={(e) => updatePast(p.id, { service: e.target.value })}
+                      />
+                      <Input
+                        className="w-24"
+                        placeholder="Année"
+                        value={p.year}
+                        onChange={(e) => updatePast(p.id, { year: e.target.value })}
+                      />
+                      <Input
+                        className="min-w-[8rem] flex-1"
+                        placeholder="Résultat / commentaire"
+                        value={p.outcome}
+                        onChange={(e) => updatePast(p.id, { outcome: e.target.value })}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePast(p.id)}
+                        aria-label="Retirer"
+                        className="rounded p-1.5 text-muted-foreground transition-colors hover:text-destructive"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {step === 5 && (
-          <div className="space-y-4 text-sm">
-            <Summary label="Activité" value={activity} />
-            <Summary label="Objectif" value={goal || "—"} />
-            <Summary label="Services" value={services.join(", ")} />
-            <Summary label="Commande" value={`${title} — ${description}`} />
-            <Summary label="Budget" value={budget} />
-            <Summary label="Délai" value={deadline || "À convenir"} />
-            <Summary
-              label="Historique"
-              value={
-                pastServices
-                  .filter((p) => p.service.trim())
-                  .map((p) => `${p.service}${p.year ? ` (${p.year})` : ""}`)
-                  .join(", ") || "—"
-              }
-            />
-            <Summary label="Téléphone" value={phone} />
-            <Summary label="Ville" value={city || "—"} />
+        {step === 2 && (
+          <div className="space-y-5">
+            <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-sm">
+              <p className="font-medium">{title || "Votre projet"}</p>
+              <p className="mt-0.5 text-muted-foreground">
+                {services.join(", ") || "—"} · {budget}
+              </p>
+            </div>
+
+            {isGuest ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Nom complet">
+                  <Input
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="Votre nom"
+                    autoComplete="name"
+                  />
+                </Field>
+                <Field label="E-mail" hint="Sera utilisé pour créer et retrouver votre compte.">
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="vous@exemple.ma"
+                    autoComplete="email"
+                  />
+                </Field>
+                <Field label="Téléphone" hint="Format international, ex. +212 6 12 34 56 78.">
+                  <Input
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="+212…"
+                    inputMode="tel"
+                    autoComplete="tel"
+                  />
+                </Field>
+                <Field label="Ville" hint="Optionnel.">
+                  <Input
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Oujda"
+                  />
+                </Field>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Nom">
+                    <Input value={name || defaultName} readOnly disabled />
+                  </Field>
+                  <Field label="E-mail">
+                    <Input type="email" value={email || defaultEmail} readOnly disabled />
+                  </Field>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Téléphone" hint="Format international, ex. +212 6 12 34 56 78.">
+                    <Input
+                      value={phone}
+                      onChange={(e) => {
+                        setPhone(e.target.value);
+                        setError(null);
+                      }}
+                      placeholder="+212…"
+                      inputMode="tel"
+                      autoComplete="tel"
+                    />
+                  </Field>
+                  <Field label="Ville" hint="Optionnel.">
+                    <Input
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="Oujda"
+                    />
+                  </Field>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -374,12 +501,12 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
         <div className="flex items-center gap-2">
           {step === 0 ? (
             onCancel && (
-              <Button variant="ghost" onClick={onCancel}>
+              <Button variant="ghost" onClick={onCancel} disabled={submitting}>
                 Annuler
               </Button>
             )
           ) : (
-            <Button variant="ghost" onClick={back}>
+            <Button variant="ghost" onClick={back} disabled={submitting}>
               <ArrowLeft size={16} /> Retour
             </Button>
           )}
@@ -389,17 +516,22 @@ export function OnboardingWizard({ onComplete, onCancel }: WizardProps) {
             Continuer <ArrowRight size={16} />
           </Button>
         ) : (
-          <Button onClick={submit}>
-            <Check size={16} /> Envoyer la demande
+          <Button onClick={goSubmit} disabled={submitting}>
+            {submitting ? (
+              <>
+                <Loader2 size={16} className="animate-spin" /> Envoi…
+              </>
+            ) : (
+              <>
+                <Check size={16} /> {isGuest ? "Envoyer ma demande" : "Envoyer la demande"}
+              </>
+            )}
           </Button>
         )}
       </div>
     </div>
   );
 }
-
-// Silence unused-reference warnings when tree-shaking strips the constant in dev.
-void OTHER_PILL;
 
 function Field({
   label,
@@ -416,14 +548,5 @@ function Field({
       {children}
       {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
     </label>
-  );
-}
-
-function Summary({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-4 border-b border-border/60 pb-2 last:border-0">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className="text-right font-medium">{value}</span>
-    </div>
   );
 }

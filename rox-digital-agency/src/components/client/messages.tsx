@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Calendar, Phone, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useClient } from "@/components/client/client-context";
 import { useChatTyping } from "@/hooks/use-chat-typing";
+import { keys } from "@/hooks/queries/keys";
+import { subscribe } from "@/lib/api/socket";
+import { markAllRead } from "@/services/notifications";
 import { cn } from "@/lib/utils";
 
 function formatTime(iso: string): string {
@@ -18,9 +22,27 @@ function formatTime(iso: string): string {
 
 export function MessagesPanel({ clientId }: { clientId?: string }) {
   const { data, sendMessage, bookCall } = useClient();
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const { typingNames, ping, stop } = useChatTyping("client", clientId, clientId);
+
+  // Instant delivery: join the client-scoped chat room so a new message (from
+  // either side) refreshes the thread without waiting on the bell round-trip.
+  useEffect(() => {
+    if (!clientId) return;
+    return subscribe("client", `/topic/chats/${clientId}/messages`, () => {
+      queryClient.invalidateQueries({ queryKey: keys.portal.all });
+      queryClient.invalidateQueries({ queryKey: keys.messages.all });
+    });
+  }, [clientId, queryClient]);
+
+  // Opening the thread clears the unread message badge (per this client only).
+  useEffect(() => {
+    if (!clientId) return;
+    void markAllRead("client", { kind: "message", clientId });
+    queryClient.invalidateQueries({ queryKey: keys.notifications.all });
+  }, [clientId, queryClient]);
 
   useEffect(() => {
     const el = scrollRef.current;
