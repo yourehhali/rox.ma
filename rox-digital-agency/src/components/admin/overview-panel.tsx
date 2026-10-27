@@ -75,7 +75,7 @@ export function OverviewPanel({
         <StatCard label="Demandes ouvertes" value={String(stats.openRequests)} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Trafic et demandes</CardTitle>
@@ -163,7 +163,7 @@ export function OverviewPanel({
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div>
