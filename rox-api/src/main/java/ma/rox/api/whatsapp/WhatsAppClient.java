@@ -1,6 +1,8 @@
 package ma.rox.api.whatsapp;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.http.MediaType;
@@ -27,6 +29,7 @@ public class WhatsAppClient {
   private static final String API_KEY_HEADER = "X-API-Key";
 
   private final RestClient http;
+  private final ObjectMapper mapper = new ObjectMapper();
 
   public WhatsAppClient() {
     SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
@@ -46,7 +49,7 @@ public class WhatsAppClient {
   }
 
   public List<SessionInfo> listSessions(String baseUrl, String apiKey) {
-    JsonNode arr = get(baseUrl, apiKey, "/api/sessions");
+    JsonNode arr = asJson(get(baseUrl, apiKey, "/api/sessions"));
     List<SessionInfo> out = new ArrayList<>();
     if (arr != null && arr.isArray()) {
       for (JsonNode n : arr) out.add(toSession(n));
@@ -55,21 +58,22 @@ public class WhatsAppClient {
   }
 
   public SessionInfo createSession(String baseUrl, String apiKey, String name) {
-    JsonNode n = http.post().uri(url(baseUrl, "/api/sessions"))
+    JsonNode n = asJson(http.post().uri(url(baseUrl, "/api/sessions"))
         .header(API_KEY_HEADER, apiKey)
+        .accept(MediaType.APPLICATION_JSON)
         .contentType(MediaType.APPLICATION_JSON)
         .body(java.util.Map.of("name", name))
-        .retrieve().body(JsonNode.class);
+        .retrieve().body(String.class));
     return toSession(n);
   }
 
   public SessionInfo startSession(String baseUrl, String apiKey, String sessionId) {
-    JsonNode n = postEmpty(baseUrl, apiKey, "/api/sessions/" + sessionId + "/start");
+    JsonNode n = asJson(postEmpty(baseUrl, apiKey, "/api/sessions/" + sessionId + "/start"));
     return toSession(n);
   }
 
   public QrResult getQr(String baseUrl, String apiKey, String sessionId) {
-    JsonNode n = get(baseUrl, apiKey, "/api/sessions/" + sessionId + "/qr");
+    JsonNode n = asJson(get(baseUrl, apiKey, "/api/sessions/" + sessionId + "/qr"));
     return new QrResult(
         n == null ? null : n.path("qrCode").asText(null),
         n == null ? null : n.path("status").asText(null));
@@ -77,11 +81,12 @@ public class WhatsAppClient {
 
   /** Send a plain text message. Returns the accepted messageId, or null if OpenWA omitted it. */
   public String sendText(String baseUrl, String apiKey, String sessionId, String chatId, String text) {
-    JsonNode n = http.post().uri(url(baseUrl, "/api/sessions/" + sessionId + "/messages/send-text"))
+    JsonNode n = asJson(http.post().uri(url(baseUrl, "/api/sessions/" + sessionId + "/messages/send-text"))
         .header(API_KEY_HEADER, apiKey)
+        .accept(MediaType.APPLICATION_JSON)
         .contentType(MediaType.APPLICATION_JSON)
         .body(java.util.Map.of("chatId", chatId, "text", text))
-        .retrieve().body(JsonNode.class);
+        .retrieve().body(String.class));
     return n == null ? null : n.path("messageId").asText(null);
   }
 
@@ -92,16 +97,34 @@ public class WhatsAppClient {
         .findFirst();
   }
 
-  private JsonNode get(String baseUrl, String apiKey, String path) {
+  private String get(String baseUrl, String apiKey, String path) {
     return http.get().uri(url(baseUrl, path))
         .header(API_KEY_HEADER, apiKey)
-        .retrieve().body(JsonNode.class);
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve().body(String.class);
   }
 
-  private JsonNode postEmpty(String baseUrl, String apiKey, String path) {
+  private String postEmpty(String baseUrl, String apiKey, String path) {
     return http.post().uri(url(baseUrl, path))
         .header(API_KEY_HEADER, apiKey)
-        .retrieve().body(JsonNode.class);
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve().body(String.class);
+  }
+
+  /**
+   * OpenWA sometimes answers with {@code application/octet-stream} (or an empty body)
+   * instead of {@code application/json}, which Spring's Jackson converter refuses to
+   * extract into {@link JsonNode}. We read the raw text and parse it ourselves so the
+   * response content-type never breaks the call.
+   */
+  private JsonNode asJson(String body) {
+    if (body == null || body.isBlank()) return null;
+    try {
+      return mapper.readTree(body);
+    } catch (JsonProcessingException ex) {
+      String snippet = body.length() > 200 ? body.substring(0, 200) + "\u2026" : body;
+      throw new IllegalStateException("OpenWA returned a non-JSON response: " + snippet, ex);
+    }
   }
 
   private static SessionInfo toSession(JsonNode n) {
