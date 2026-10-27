@@ -73,7 +73,7 @@ export function OverviewPanel({
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 lg:col-span-2">
           <CardHeader>
             <CardTitle>Trafic et demandes</CardTitle>
             <CardDescription>
@@ -161,7 +161,7 @@ export function OverviewPanel({
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle>Dernières commandes</CardTitle>
