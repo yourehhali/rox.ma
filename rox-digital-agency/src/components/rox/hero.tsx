@@ -46,7 +46,7 @@ export function Hero() {
         preload="auto"
         tabIndex={-1}
       >
-        <source src="/hero-bg.webm" type="video/webm; codecs=vpx9" />
+        <source src="/hero-bg.webm" type="video/webm; codecs=vp9" />
       </video>
       {/* Dark overlay over the video */}
       <div
