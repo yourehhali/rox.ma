@@ -5,13 +5,9 @@ import heroLight from "@/assets/hero-waves-light.png";
 
 const chips = ["Site web", "SEO local", "Figma", "WordPress", "Hébergement"];
 
-// Red abstract wave motion loop used as the hero background (YouTube embed).
-const VIDEO_ID = "P-M0du0bXec";
-const VIDEO_SRC =
-  `https://www.youtube-nocookie.com/embed/${VIDEO_ID}` +
-  "?autoplay=1&mute=1&loop=1&playlist=" +
-  VIDEO_ID +
-  "&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1";
+// Red abstract wave motion loop used as the hero background (local copies, first minute
+// of https://www.youtube.com/watch?v=P-M0du0bXec — served from public/ as WebM (VP9,
+// primary) and MP4 (H.264, fallback for browsers without VP9/WebM support)).
 
 export function Hero() {
   return (
@@ -37,29 +33,22 @@ export function Hero() {
           backgroundPosition: "center 68%",
         }}
       />
-      {/* Muted looping YouTube background — oversized 16:9 iframe, centered and cropped
-          to cover any viewport (portrait mobile included) without letterboxing. */}
-      <div aria-hidden className="absolute inset-0 overflow-hidden">
-        <iframe
-          title=""
-          src={VIDEO_SRC}
-          tabIndex={-1}
-          allow="autoplay; encrypted-media; picture-in-picture"
-          referrerPolicy="strict-origin-when-cross-origin"
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            width: "100vw",
-            height: "56.25vw", // 16:9 from width — wins on landscape viewports
-            minWidth: "100vw",
-            minHeight: "177.78vh", // 16:9 from height — wins on portrait (mobile) viewports
-            transform: "translate(-50%, -50%)",
-            border: "0",
-            pointerEvents: "none",
-          }}
-        />
-      </div>
+      {/* Muted looping background video — a local file, so `object-cover` center-crops
+          it to fill any viewport (portrait mobile included) without letterboxing and
+          without any player chrome to shield against. */}
+      <video
+        aria-hidden
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        tabIndex={-1}
+      >
+        <source src="/hero-bg.webm" type="video/webm; codecs=vpx9" />
+        <source src="/hero-bg.mp4" type="video/mp4; codecs=avc1.4D401F" />
+      </video>
       {/* Dark overlay over the video */}
       <div
         aria-hidden
@@ -74,12 +63,6 @@ export function Hero() {
         aria-hidden
         className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-black/90"
       />
-      {/* Invisible click/hover shield — sits just above the un-z-indexed video layer so
-          the player never receives pointer events (its title strip, watch-on-YouTube
-          badge and controls can never appear), while the content column below still
-          paints and stays clickable since it comes later in the DOM. */}
-      <div aria-hidden className="absolute inset-0 z-1" />
-
       {/* Fixed on-dark content column — the video background is dark in both themes */}
       <div className="relative mx-auto w-full max-w-6xl px-4 text-white sm:px-6">
         <div className="max-w-3xl">

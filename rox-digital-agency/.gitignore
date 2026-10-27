@@ -48,3 +48,11 @@ lerna-debug.log*
 
 # OS
 .DS_Store
+
+# Large media files — kept local only, never committed.
+# NOTE: public/hero-bg.mp4 is the H.264 fallback source in the hero <video>; it is
+# intentionally ignored, so builds made from the git repo won't ship it (only the
+# committed hero-bg.webm will). Old browsers without WebM/VP9 get no video there.
+*.mp4
+*.m4v
+*.mov
