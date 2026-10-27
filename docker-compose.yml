@@ -44,16 +44,11 @@ services:
       ROX_SEED_ENABLED: ${ROX_SEED_ENABLED:-true}
       ROX_SEED_ADMIN_EMAIL: ${ROX_SEED_ADMIN_EMAIL:?set ROX_SEED_ADMIN_EMAIL or disable ROX_SEED_ENABLED}
       ROX_SEED_ADMIN_PASSWORD: ${ROX_SEED_ADMIN_PASSWORD:?set ROX_SEED_ADMIN_PASSWORD or disable ROX_SEED_ENABLED}
-      # SMTP for email OTP (Phase 3). Leave SMTP_HOST empty to keep mail disabled
-      # and skip sends — the API still boots and signup still works.
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-ROX Agency <no-reply@rox.ma>}
-      # WhatsApp OTP via the internal OpenWA gateway (rox-api proxies it). The
-      # admin panel edits these at runtime (whatsapp_settings DB row); env values
-      # are first-boot defaults. OPENWA_API_KEY must match OpenWA's API_MASTER_KEY.
       ROX_WHATSAPP_ENABLED: ${ROX_WHATSAPP_ENABLED:-false}
       OPENWA_URL: ${OPENWA_URL:-http://openwa:2785}
       OPENWA_API_KEY: ${OPENWA_API_KEY:-}
@@ -73,8 +68,6 @@ services:
       retries: 5
       start_period: 40s
     networks: [roxnet, dokploy-network]
-    # Internal-only. Traefik reaches `api:8090` via dokploy-network; the roxnet
-    # bridge is only used for internal web<->api/db traffic. No host ports.
     expose:
       - "8090"
 
@@ -100,17 +93,8 @@ services:
       retries: 3
       start_period: 20s
     networks: [roxnet, dokploy-network]
-    # Internal-only. Traefik reaches `web:3000` via dokploy-network; the roxnet
-    # bridge is only used for internal web<->api/db traffic. No host ports.
     expose:
       - "3000"
-
-  # OpenWA — unofficial WhatsApp bridge. ENGINE_TYPE=baileys runs the lightweight
-  # pure-Node/WebSocket engine (no Puppeteer + headless Chromium, so no ~1 GB extra
-  # RAM). OpenWA normalizes our engine-neutral <digits>@c.us chatIds to Baileys'
-  # @s.whatsapp.net JIDs internally. Internal-only: rox-api reaches it at
-  # http://openwa:2785 and proxies its HTTP API, so OpenWA's own dashboard is never
-  # publicly routed. Shares the API_MASTER_KEY/OPENWA_API_KEY secret with rox-api.
   openwa:
     image: ghcr.io/rmyndharis/openwa:0.25.0
     restart: unless-stopped
@@ -129,8 +113,6 @@ services:
     volumes:
       - openwa-data:/app/data
     healthcheck:
-      # Tool-agnostic probe: the OpenWA image is Node-based, so `node` is always present
-      # (unlike curl/wget, which vary by base image and caused the false "unhealthy").
       test:
         - CMD
         - node
@@ -141,7 +123,6 @@ services:
       retries: 5
       start_period: 90s
     networks: [roxnet]
-    # Internal-only — no host port. rox-api talks to it over roxnet.
     expose:
       - "2785"
 
@@ -154,8 +135,5 @@ volumes:
 networks:
   roxnet:
     driver: bridge
-  # External network created by Dokploy — Traefik is attached to it and only
-  # watches containers on this network (providers.docker.network in traefik.yml).
-  # Verify the exact name on your server with:  docker network ls | grep dokploy
   dokploy-network:
     external: true
