@@ -6,7 +6,6 @@
 
 import { Bell, Check, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/api/token-store";
 import type { AppNotification } from "@/lib/api/types";
@@ -82,7 +81,9 @@ export function NotificationBell({ role, enabled = true, onOpenOrder, className 
           )}
         </div>
 
-        <ScrollArea className="max-h-80">
+        {/* Plain overflow container: Radix ScrollArea needs a resolved height,
+            so `max-h` alone leaves the list clipped and unscrollable. */}
+        <div className="max-h-80 overflow-y-auto overscroll-contain">
           {items.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">
               Aucune notification pour le moment.
@@ -123,7 +124,7 @@ export function NotificationBell({ role, enabled = true, onOpenOrder, className 
               ))}
             </ul>
           )}
-        </ScrollArea>
+        </div>
       </PopoverContent>
     </Popover>
   );
