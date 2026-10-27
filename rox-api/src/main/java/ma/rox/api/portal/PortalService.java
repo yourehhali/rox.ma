@@ -14,6 +14,7 @@ import ma.rox.api.error.ApiException;
 import ma.rox.api.events.Events;
 import ma.rox.api.portal.PortalDtos.*;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -382,7 +383,10 @@ public class PortalService {
   }
 
   public List<ClientAccount> listClients() {
-    return clients.findAll();
+    // Deterministic roster: `findAll()` without an ORDER BY can reorder between
+    // refetches, which makes the admin's conversation picker (and its fallback
+    // to "the first client") jump between threads.
+    return clients.findAll(Sort.by(Sort.Order.asc("createdAt"), Sort.Order.asc("name")));
   }
 
   public ClientAccount requireClient(String id) {

@@ -24,20 +24,31 @@ export function MessagesPanel({
   onClientChange: (clientId: string) => void;
 }) {
   const clients = portal.snapshots;
-  const activeId =
-    clientId && clients.some((c) => c.user.id === clientId)
-      ? clientId
-      : (clients[0]?.user.id ?? null);
+  const firstId = clients[0]?.user.id ?? null;
+  const activeId = clientId ?? firstId;
   const snapshot = useMemo(
-    () => clients.find((c) => c.user.id === activeId) ?? null,
+    () => (activeId ? (clients.find((c) => c.user.id === activeId) ?? null) : null),
     [clients, activeId],
   );
+  // The roster hasn't caught up with the requested thread yet (a deep link from
+  // a notification, or a guest lead that has no account). Rendering another
+  // client's conversation in that gap is how replies get misrouted, so stay
+  // neutral until the selected thread actually resolves.
+  const pendingSelection = activeId !== null && snapshot === null;
 
   const [draft, setDraft] = useState("");
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const adminId = getCachedUser<AdminUser>("admin")?.id ?? null;
   const queryClient = useQueryClient();
   const { typingNames, ping, stop } = useChatTyping("admin", activeId, adminId);
+
+  // Pin the default thread explicitly rather than falling back on every render,
+  // so the selection is stable across refetches of the client roster.
+  useEffect(() => {
+    if (!clientId && firstId) onClientChange(firstId);
+  }, [clientId, firstId, onClientChange]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
@@ -45,20 +56,39 @@ export function MessagesPanel({
 
   // Instant delivery: join the active client's chat room so a reply (or a new
   // inbound message) refreshes the thread without waiting on the bell.
+  const threadId = snapshot?.user.id ?? null;
   useEffect(() => {
-    if (!activeId) return;
-    return subscribe("admin", `/topic/chats/${activeId}/messages`, () => {
-      queryClient.invalidateQueries({ queryKey: keys.clients.portalOf(activeId) });
+    if (!threadId) return;
+    return subscribe("admin", `/topic/chats/${threadId}/messages`, () => {
+      queryClient.invalidateQueries({ queryKey: keys.clients.portalOf(threadId) });
       queryClient.invalidateQueries({ queryKey: keys.messages.all });
     });
-  }, [activeId, queryClient]);
+  }, [threadId, queryClient]);
 
   // Opening a thread clears that client's unread message count for the bell.
   useEffect(() => {
-    if (!activeId) return;
-    void markAllRead("admin", { kind: "message", clientId: activeId });
+    if (!threadId) return;
+    void markAllRead("admin", { kind: "message", clientId: threadId });
     queryClient.invalidateQueries({ queryKey: keys.notifications.all });
-  }, [activeId, queryClient]);
+  }, [threadId, queryClient]);
+
+  // Switching threads must not leak the previous failure into the new context.
+  useEffect(() => {
+    setSendError(null);
+  }, [activeId]);
+
+  if (!portal.ready || pendingSelection) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Chargement de la conversation</CardTitle>
+          <CardDescription>
+            Récupération des fils d'échange en cours avec les clients…
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   if (clients.length === 0) {
     return (
@@ -73,12 +103,22 @@ export function MessagesPanel({
     );
   }
 
-  const send = () => {
+  const send = async () => {
     const text = draft.trim();
-    if (!text || !snapshot) return;
-    portal.actions.reply(snapshot.user.id, text);
-    setDraft("");
-    stop();
+    if (!text || !snapshot || sending) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      // Only clear the draft once the reply actually landed; a failed send
+      // used to wipe the composer silently, making the panel look dead.
+      await portal.actions.reply(snapshot.user.id, text);
+      setDraft("");
+      stop();
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Échec d'envoi du message.");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -163,16 +203,17 @@ export function MessagesPanel({
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  send();
+                  void send();
                 }
               }}
               placeholder="Écrire une réponse…"
               className="h-10 flex-1 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
             />
-            <Button onClick={send} disabled={!draft.trim()}>
-              <Send size={16} /> Envoyer
+            <Button onClick={send} disabled={!draft.trim() || sending}>
+              <Send size={16} /> {sending ? "Envoi…" : "Envoyer"}
             </Button>
           </div>
+          {sendError && <p className="mt-2 text-xs text-destructive">{sendError}</p>}
         </CardContent>
       </Card>
 

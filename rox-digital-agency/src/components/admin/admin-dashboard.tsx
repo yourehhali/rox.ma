@@ -60,6 +60,11 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   useNotificationSocket("admin");
 
   const handleSelect = (section: AdminSection) => {
+    // Entering Messages from elsewhere must not inherit a conversation pinned by
+    // an earlier deep link (clients panel / notification), otherwise the panel
+    // reopens on a stale thread. Navigating while already on Messages keeps the
+    // admin's current selection.
+    if (section === "messages" && active !== "messages") setFocusClientId(null);
     setActive(section);
     setMobileOpen(false);
   };

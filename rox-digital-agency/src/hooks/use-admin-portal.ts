@@ -124,8 +124,11 @@ export function useAdminPortal(range: TrafficRange = "12M") {
     onSuccess: invalidateAll,
   });
   const replyMut = useMutation({
+    // `/messages` is a client path prefix, so inference would attach the client
+    // bearer (which admins don't have) and the API would 401 every reply. The
+    // admin reply must force its role or nothing is ever sent or refreshed.
     mutationFn: ({ clientId, text }: { clientId: string; text: string }) =>
-      messagesSvc.sendMessage({ text, clientId }),
+      messagesSvc.sendMessage({ text, clientId }, "admin"),
     onSuccess: invalidateAll,
   });
   const confirmMut = useMutation({

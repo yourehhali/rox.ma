@@ -15,9 +15,15 @@ type Handler = (body: unknown, raw: IMessage) => void;
 
 type Entry = {
   client: Client;
-  // destination -> set of callbacks. Replayed on every (re)connect because the
-  // broker-side subscription is lost when the socket drops.
+  // destination -> set of callbacks. Desired subscriptions, kept across
+  // reconnects so the broker-side subscription can be re-attached.
   subs: Map<string, Set<Handler>>;
+  // destination -> the single broker subscription actually carrying `subs`.
+  // Reconciled on every (re)connect *and* whenever a new destination is
+  // subscribed while the socket is already OPEN — otherwise a second
+  // destination (e.g. switching chat threads) would be recorded but never
+  // SUBSCRIBED, and its messages would silently never arrive.
+  live: Map<string, StompSubscription>;
   refCount: number;
 };
 
@@ -28,6 +34,46 @@ function wsUrl(): string {
   // http -> ws, https -> wss. Strip any trailing slash then append /ws.
   const url = base.replace(/\/+$/, "").replace(/^http/, "ws");
   return `${url}/ws`;
+}
+
+function dispatch(entry: Entry, destination: string, msg: IMessage): void {
+  const body = safeJson(msg.body);
+  const handlers = entry.subs.get(destination);
+  if (!handlers) return;
+  for (const h of handlers) {
+    try {
+      h(body, msg);
+    } catch {
+      /* a misbehaving subscriber must not break the frame loop */
+    }
+  }
+}
+
+/** Attach one broker subscription for `destination` if none is live yet. */
+function ensureSubscribed(entry: Entry, destination: string): void {
+  if (entry.live.has(destination)) return;
+  if (!entry.client.connected) return; // onConnect will reconcile
+  const sub = entry.client.subscribe(destination, (msg) => dispatch(entry, destination, msg));
+  entry.live.set(destination, sub);
+}
+
+/**
+ * Drop broker subscriptions whose destination no longer has any local handler,
+ * and forget the empty handler set so a later `subscribe()` re-attaches cleanly.
+ */
+function reconcileSubscriptions(entry: Entry): void {
+  for (const [dest, handlers] of entry.subs) {
+    if (handlers.size > 0) continue;
+    entry.subs.delete(dest);
+    const live = entry.live.get(dest);
+    if (!live) continue;
+    try {
+      live.unsubscribe();
+    } catch {
+      /* ignore */
+    }
+    entry.live.delete(dest);
+  }
 }
 
 function connect(entry: Entry, role: Role): void {
@@ -45,16 +91,7 @@ function connect(entry: Entry, role: Role): void {
       // (Re)attach every desired subscription after a fresh handshake.
       for (const [dest, handlers] of entry.subs) {
         if (handlers.size === 0) continue;
-        entry.client.subscribe(dest, (msg) => {
-          const body = safeJson(msg.body);
-          for (const h of handlers) {
-            try {
-              h(body, msg);
-            } catch {
-              /* a misbehaving subscriber must not break the frame loop */
-            }
-          }
-        });
+        ensureSubscribed(entry, dest);
       }
     },
     onStompError: () => {
@@ -87,60 +124,58 @@ function acquire(role: Role): Entry {
     entry = {
       client: new Client({ reconnectDelay: 4000 }),
       subs: new Map(),
+      live: new Map(),
       refCount: 0,
     };
     pool.set(role, entry);
-    connect(entry, role);
   }
   entry.refCount += 1;
+  // Re-open the socket when the previous idle gap tore it down. The entry stays
+  // in the pool, so `subs` survives teardown and `onConnect` re-attaches handlers
+  // belonging to components that never unmounted (a notification socket mounted
+  // by a parent shell would otherwise be silently lost for the whole session).
+  if (!entry.client.active) connect(entry, role);
   return entry;
 }
 
 function release(role: Role, entry: Entry): void {
   entry.refCount -= 1;
-  if (entry.refCount <= 0) {
-    try {
-      entry.client.deactivate();
-    } catch {
-      /* ignore */
-    }
-    pool.delete(role);
+  if (entry.refCount > 0) return;
+  // Idle: drop the socket, but keep the pool entry and its desired subscriptions
+  // so the next `subscribe()` transparently reconnects and replays them.
+  entry.live.clear();
+  try {
+    entry.client.deactivate();
+  } catch {
+    /* ignore */
   }
 }
 
 /**
  * Subscribe to a broker destination (`/user/queue/notifications`,
- * `/topic/admin/board`, `/topic/orders/{id}/messages`, …). Returns an
+ * `/topic/admin/board`, `/topic/chats/{clientId}/messages`, …). Returns an
  * unsubscribe fn. The socket is opened lazily on the first subscriber for a
- * role and torn down once the last one detaches.
+ * role and torn down once the last one detaches; desired subscriptions survive
+ * the idle gap and are replayed on the next (re)connect.
  */
 export function subscribe(role: Role, destination: string, handler: Handler): () => void {
   if (typeof window === "undefined") return () => {};
 
   const entry = acquire(role);
   let set = entry.subs.get(destination);
-  const isFirst = !set;
   if (!set) {
     set = new Set();
     entry.subs.set(destination, set);
   }
   set.add(handler);
 
-  // If the socket is already established, subscribe immediately; otherwise the
+  // If the socket is already established, subscribe now; otherwise the
   // onConnect callback will pick it up once the handshake completes.
-  if (!isFirst && entry.client.connected) {
-    entry.client.subscribe(destination, (msg) => {
-      const body = safeJson(msg.body);
-      const handlers = entry.subs.get(destination);
-      if (handlers) for (const h of handlers) h(body, msg);
-    });
-  }
+  ensureSubscribed(entry, destination);
 
   return () => {
-    const handlers = entry.subs.get(destination);
-    if (handlers) {
-      handlers.delete(handler);
-    }
+    entry.subs.get(destination)?.delete(handler);
+    reconcileSubscriptions(entry);
     release(role, entry);
   };
 }
@@ -169,9 +204,11 @@ export function reauthenticate(role: Role): void {
   }
   pool.delete(role);
   // Re-arm the pool entry so existing subscribers reconnect with the fresh token.
+  // `live` is dropped with the old socket; onConnect replays `subs` on the new one.
   const fresh: Entry = {
     client: new Client({ reconnectDelay: 4000 }),
     subs: entry.subs,
+    live: new Map(),
     refCount: entry.refCount,
   };
   pool.set(role, fresh);
