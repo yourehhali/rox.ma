@@ -18,9 +18,9 @@ export function Services() {
                 key={s.id}
                 className="group flex flex-col rounded-xl border border-border bg-card p-6 transition-colors hover:border-primary/50"
               >
-                <div className="flex items-center justify-between">
-                  <Icon size={22} className="text-primary" strokeWidth={1.8} />
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="flex items-start gap-2.5">
+                  <Icon size={22} className="mt-0.5 shrink-0 text-primary" strokeWidth={1.8} />
+                  <span className="text-[11px] font-semibold uppercase leading-snug tracking-wider text-muted-foreground">
                     {s.tag}
                   </span>
                 </div>
