@@ -7,6 +7,8 @@ import java.util.List;
 import ma.rox.api.auth.AdminAccount;
 import ma.rox.api.auth.AdminRepo;
 import ma.rox.api.content.*;
+import ma.rox.api.portfolio.PortfolioItem;
+import ma.rox.api.portfolio.PortfolioRepo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,15 +32,16 @@ public class DataSeeder implements CommandLineRunner {
   private final PlanRepo plans;
   private final FaqRepo faqs;
   private final SiteInfoRepo info;
+  private final PortfolioRepo portfolio;
   private final PasswordEncoder encoder;
 
   @Value("${rox.seed.admin-email:admin@rox.ma}") String adminEmail;
   @Value("${rox.seed.admin-password:rox-admin}") String adminPassword;
 
   public DataSeeder(AdminRepo admins, ServiceRepo services, PlanRepo plans, FaqRepo faqs,
-                    SiteInfoRepo info, PasswordEncoder encoder) {
+                    SiteInfoRepo info, PortfolioRepo portfolio, PasswordEncoder encoder) {
     this.admins = admins; this.services = services; this.plans = plans;
-    this.faqs = faqs; this.info = info; this.encoder = encoder;
+    this.faqs = faqs; this.info = info; this.portfolio = portfolio; this.encoder = encoder;
   }
 
   @Override
@@ -49,6 +52,7 @@ public class DataSeeder implements CommandLineRunner {
     seedPlans();
     seedFaqs();
     seedSiteInfo();
+    seedPortfolio();
   }
 
   private void seedAdmin() {
@@ -419,5 +423,160 @@ public class DataSeeder implements CommandLineRunner {
     s.setPricingNote("Les prix affichés sont des points de départ. Le devis final dépend du périmètre.");
     s.setCities(new ArrayList<>(List.of("Casablanca", "Rabat", "Marrakech", "Tanger", "Agadir", "Fès")));
     info.save(s);
+  }
+
+  private void seedPortfolio() {
+    if (portfolio.count() > 0) return;
+
+    addPortfolio(
+        "ASAPP — Plateforme de mobilité nouvelle génération", "ASAPP",
+        "Transport et mobilité",
+        "Conception et développement web, site vitrine, présentation de la plateforme et préinscription des chauffeurs",
+        "France",
+        "Conception d'un site web pour présenter ASAPP, une plateforme de mobilité qui vise à simplifier la mise en relation entre passagers et chauffeurs. Le site valorise le service, ses avantages et le parcours de préinscription des chauffeurs.",
+        "Une présence digitale dédiée au marché français pour présenter le concept et faciliter les demandes de préinscription.",
+        List.of("Site vitrine", "Transport", "Mobilité", "UX/UI", "Préinscription", "Développement web"),
+        "#111827", "#22C55E", true);
+
+    addPortfolio(
+        "Speed Taxi 68 — Site web de réservation de taxi", "Speed Taxi 68",
+        "Transport et mobilité",
+        "Création de site web, présentation des services de taxi, réservation et optimisation de l'expérience utilisateur",
+        "Mulhouse, France",
+        "Développement d'un site web pour un service de taxi français, conçu pour présenter les prestations, communiquer les informations pratiques et faciliter les demandes de réservation.",
+        "Une vitrine professionnelle adaptée au marché local français, structurée autour des services de transport et du parcours de réservation.",
+        List.of("Taxi", "Réservation en ligne", "Transport", "Transfert aéroport", "Site vitrine", "SEO local"),
+        "#111827", "#2563EB", true);
+
+    addPortfolio(
+        "EvoDispatch — Solution digitale pour le transport", "EvoDispatch",
+        "Transport et logiciels métier",
+        "Conception et développement web",
+        "France",
+        "Projet digital associé au secteur du transport et de la gestion des opérations de dispatch. Le site présente la solution et son positionnement auprès des professionnels du secteur.",
+        "Une présence digitale destinée à valoriser la solution et à faciliter sa présentation auprès des professionnels du transport.",
+        List.of("Transport", "Dispatch", "Mobilité", "Logiciel métier", "Développement web"),
+        "#111827", "#0EA5E9", false);
+
+    addPortfolio(
+        "RoxTV — Site commercial de streaming", "RoxTV",
+        "Médias et divertissement numérique",
+        "Conception de site web, présentation des abonnements, intégration des tarifs et structuration du parcours de souscription",
+        "En ligne",
+        "Création d'un site commercial présentant les différentes formules RoxTV, leurs fonctionnalités et les options disponibles. La structure facilite la comparaison des offres.",
+        "Une vitrine commerciale organisée autour des formules et des fonctionnalités proposées.",
+        List.of("Streaming", "Abonnements", "Divertissement", "Site commercial", "UX/UI", "Tarification"),
+        "#111827", "#7C3AED", false);
+
+    addPortfolio(
+        "Dubai Mood — Boutique e-commerce", "Fair Up — Collaboration pour un client français",
+        "Commerce en ligne et parfumerie",
+        "Collaboration sur un projet e-commerce, conception web et mise en valeur du catalogue produits",
+        "France",
+        "Projet e-commerce réalisé en collaboration avec Fair Up, une startup marocaine, pour un client français. La boutique Dubai Mood propose une présence digitale dédiée à la présentation de ses produits.",
+        "Une collaboration entre une startup marocaine et un client français autour d'un projet de commerce en ligne.",
+        List.of("E-commerce", "Fair Up", "Startup marocaine", "Collaboration", "Boutique en ligne", "Client français"),
+        "#F5EFE5", "#B68A45", true);
+
+    addPortfolio(
+        "ENIM PRIVE — Site web institutionnel", "ENIM PRIVE",
+        "Éducation et formation",
+        "Conception et développement web, présentation de l'établissement et structuration des contenus institutionnels",
+        "Plusieurs villes au Maroc",
+        "Création d'un site web institutionnel pour ENIM PRIVE, un établissement de formation présent dans plusieurs villes du Maroc. Le site présente l'école, ses activités et ses informations institutionnelles.",
+        "Une présence digitale permettant de présenter l'établissement et de centraliser les informations destinées aux futurs étudiants et aux familles.",
+        List.of("Éducation", "École privée", "Formation", "Site institutionnel", "Maroc", "Multi-sites"),
+        "#12304A", "#16A085", true);
+
+    addPortfolio(
+        "O'Vidéo — Site vitrine audiovisuel", "O'Vidéo",
+        "Production audiovisuelle et communication",
+        "Création de site vitrine, présentation des prestations et valorisation du portfolio",
+        "France",
+        "Création d'une vitrine web pour présenter les prestations audiovisuelles d'O'Vidéo, valoriser son savoir-faire créatif et faciliter la découverte de ses services.",
+        "Une présence professionnelle en ligne adaptée au marché français pour présenter les prestations et favoriser les prises de contact.",
+        List.of("Audiovisuel", "Production vidéo", "Portfolio", "Communication", "Site vitrine", "Client français"),
+        "#111111", "#C6A15B", true);
+
+    addPortfolio(
+        "ClothesForge — E-commerce de vêtements personnalisés", "ClothesForge",
+        "Mode, textile et commerce en ligne",
+        "Développement e-commerce, intégration du catalogue, organisation des catégories et conception du parcours de personnalisation",
+        "En ligne",
+        "Conception d'une boutique e-commerce dédiée aux vêtements et accessoires personnalisables. Le site permet de découvrir les collections et de parcourir les catégories de produits.",
+        "Une boutique en ligne structurée pour présenter les produits, valoriser les possibilités de personnalisation et accompagner le parcours d'achat.",
+        List.of("E-commerce", "WooCommerce", "Mode", "Vêtements personnalisés", "Personnalisation produit", "Boutique en ligne"),
+        "#181818", "#0373FF", true);
+
+    addPortfolio(
+        "NovaPOS — Solution commerciale de point de vente", "NovaPOS — Produit commercial de ROX Agency",
+        "Logiciels de gestion et restauration",
+        "Conception et développement logiciel, interface de point de vente et gestion des opérations commerciales",
+        "Maroc",
+        "Développement et commercialisation de NovaPOS, une solution de point de vente destinée aux professionnels de la restauration. Le produit est déjà utilisé par cinq restaurants.",
+        "Adopté par cinq restaurants, NovaPOS dispose d'une utilisation commerciale réelle auprès de professionnels de la restauration.",
+        List.of("POS", "Restauration", "Logiciel de caisse", "Gestion commerciale", "Produit commercial", "Angular", "Spring Boot"),
+        "#172554", "#10B981", true);
+
+    addPortfolio(
+        "ROX Network — Projet de réseau social modulaire", "Projet interne — ROX Agency",
+        "Logiciels et plateformes numériques",
+        "Développement full-stack, conception d'architecture applicative et organisation des services backend",
+        "Oujda",
+        "Conception d'un projet de réseau social organisé autour d'une architecture modulaire, avec un frontend web et des services backend séparés.",
+        "Une architecture pensée pour séparer les responsabilités et faciliter la maintenance ainsi que l'évolution du projet.",
+        List.of("Next.js", "Go", "Microservices", "API Gateway", "Réseau social", "Messagerie", "Full-stack"),
+        "#111827", "#7C3AED", false);
+
+    addPortfolio(
+        "01 Blog — Projet de plateforme éditoriale", "Projet personnel — ROX Agency",
+        "Médias numériques et publication de contenu",
+        "Développement web et structuration du projet applicatif",
+        "Oujda",
+        "Développement d'un projet web orienté publication de contenu, organisé autour d'une partie frontend et d'une partie applicative.",
+        "Un projet de développement destiné à explorer la conception d'une expérience éditoriale en ligne.",
+        List.of("Blog", "Développement web", "Frontend", "Publication numérique", "Projet personnel"),
+        "#172033", "#3B82F6", false);
+
+    addPortfolio(
+        "Mini Framework — Conception d'un framework logiciel", "Projet personnel — ROX Agency",
+        "Développement logiciel et ingénierie informatique",
+        "Développement logiciel, conception de framework et structuration de composants réutilisables",
+        "Oujda",
+        "Projet de développement logiciel consacré à la création d'un mini-framework. Il explore l'organisation du code, la conception de composants réutilisables et les fondations d'une architecture applicative.",
+        "Un projet technique destiné à approfondir les principes de conception logicielle et de structuration d'un framework.",
+        List.of("Framework", "Développement logiciel", "Architecture logicielle", "Code réutilisable", "GitHub"),
+        "#18181B", "#F97316", false);
+
+    addPortfolio(
+        "0-Shell — Projet de shell en ligne de commande", "Projet personnel — ROX Agency",
+        "Développement système et outils en ligne de commande",
+        "Programmation système, développement logiciel et implémentation de commandes shell",
+        "Oujda",
+        "Projet de développement d'un shell en ligne de commande visant à reproduire certaines fonctionnalités essentielles d'un environnement Unix. Le projet explore l'exécution de commandes et l'interaction avec le système.",
+        "Un projet technique permettant d'approfondir la programmation système, la gestion des commandes et le fonctionnement d'un interpréteur shell.",
+        List.of("Shell Unix", "Programmation système", "CLI", "Terminal", "Développement logiciel", "GitHub"),
+        "#18181B", "#F59E0B", false);
+  }
+
+  private void addPortfolio(String title, String client, String sector, String service, String city,
+                            String summary, String result, List<String> tags, String colorA, String colorB,
+                            boolean featured) {
+    PortfolioItem p = new PortfolioItem();
+    p.setId(prefixed("p"));
+    p.setTitle(title);
+    p.setClient(client);
+    p.setSector(sector);
+    p.setService(service);
+    p.setCity(city);
+    p.setSummary(summary);
+    p.setResult(result);
+    p.setTags(new ArrayList<>(tags));
+    p.setColorA(colorA);
+    p.setColorB(colorB);
+    p.setFeatured(featured);
+    p.setPublished(true);
+    p.setCreatedAt(nowUtc());
+    portfolio.save(p);
   }
 }
