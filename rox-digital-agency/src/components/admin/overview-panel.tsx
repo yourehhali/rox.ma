@@ -40,9 +40,6 @@ export function OverviewPanel({
   onSelect: (s: AdminSection) => void;
 }) {
   const { stats, allOrders, openRequests, traffic } = portal;
-
-  // TrafficPoint uses English keys; re-shape to the French series names used
-  // by `chartConfig` so the legend labels stay in the site's language.
   const chartData = useMemo(
     () => traffic.map((p) => ({ mois: p.month, vues: p.views, contacts: p.contacts })),
     [traffic],
@@ -87,11 +84,11 @@ export function OverviewPanel({
           </CardHeader>
           <CardContent>
             {chartData.length === 0 ? (
-              <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+              <div className="flex h-32 items-center justify-center text-sm text-muted-foreground sm:h-64">
                 Le backend n'a pas encore renvoyé de points d'analyse.
               </div>
             ) : (
-              <ChartContainer config={chartConfig} className="h-64 w-full">
+              <ChartContainer config={chartConfig} className="h-56 w-full sm:h-64">
                 <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                   <defs>
                     <linearGradient id="fillVues" x1="0" y1="0" x2="0" y2="1">
