@@ -36,7 +36,15 @@ public final class ContentDtos {
 
   public record FaqItemDto(String q, String a) {}
 
-  public record SiteInfoDto(String email, String phone, String whatsapp, List<String> cities, String pricingNote) {}
+  public record SiteInfoDto(
+      String email,
+      String phone,
+      String whatsapp,
+      List<String> cities,
+      String pricingNote,
+      boolean whatsappEnabled,
+      String whatsappMessage,
+      String whatsappPosition) {}
 
   /** Aggregate GET /content */
   public record SiteContentDto(

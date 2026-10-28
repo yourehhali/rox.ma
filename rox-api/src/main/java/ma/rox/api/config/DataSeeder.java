@@ -422,6 +422,10 @@ public class DataSeeder implements CommandLineRunner {
     s.setWhatsapp("");
     s.setPricingNote("Les prix affichés sont des points de départ. Le devis final dépend du périmètre.");
     s.setCities(new ArrayList<>(List.of("Casablanca", "Rabat", "Marrakech", "Tanger", "Agadir", "Fès")));
+    // Floating WhatsApp bubble: off until the admin configures it.
+    s.setWhatsappEnabled(false);
+    s.setWhatsappMessage("");
+    s.setWhatsappPosition("right");
     info.save(s);
   }
 

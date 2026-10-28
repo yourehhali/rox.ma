@@ -235,7 +235,7 @@ public class ContentService {
 
   public SiteInfoDto getInfo() {
     return info.findById(1).map(ContentService::toDto).orElseGet(() ->
-        new SiteInfoDto("", "", "", List.of(), ""));
+        new SiteInfoDto("", "", "", List.of(), "", false, "", "right"));
   }
 
   @Transactional
@@ -250,6 +250,9 @@ public class ContentService {
     s.setWhatsapp(nz(in.whatsapp()));
     s.setPricingNote(nz(in.pricingNote()));
     s.setCities(in.cities() == null ? new ArrayList<>() : new ArrayList<>(in.cities()));
+    s.setWhatsappEnabled(in.whatsappEnabled());
+    s.setWhatsappMessage(nz(in.whatsappMessage()));
+    s.setWhatsappPosition("left".equals(in.whatsappPosition()) ? "left" : "right");
     info.save(s);
     return toDto(s);
   }
@@ -262,7 +265,9 @@ public class ContentService {
 
   public static SiteInfoDto toDto(SiteInfo s) {
     return new SiteInfoDto(s.getEmail(), s.getPhone(), s.getWhatsapp(),
-        s.getCities() == null ? List.of() : s.getCities(), s.getPricingNote());
+        s.getCities() == null ? List.of() : s.getCities(), s.getPricingNote(),
+        s.isWhatsappEnabled(), nz(s.getWhatsappMessage()),
+        "left".equals(s.getWhatsappPosition()) ? "left" : "right");
   }
 
   // ---------- helpers ----------
