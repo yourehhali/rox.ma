@@ -41,7 +41,7 @@ export function FloatingWhatsApp() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Discuter sur WhatsApp"
-      className={`fixed bottom-5 ${side} z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-1 ring-primary-foreground/10 transition-transform duration-200 hover:scale-105 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none`}
+      className={`glass-red-dark fixed bottom-5 ${side} z-40 flex h-14 w-14 items-center justify-center rounded-full text-primary transition-transform duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none`}
     >
       <WhatsAppGlyph />
     </a>
