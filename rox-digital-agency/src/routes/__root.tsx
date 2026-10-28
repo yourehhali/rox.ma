@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { JsonLd } from "@/components/rox/json-ld";
+import { FloatingWhatsApp } from "@/components/rox/floating-whatsapp";
 import { Toaster } from "@/components/ui/sonner";
 import { organizationLd, websiteLd } from "@/lib/seo";
 
@@ -127,6 +128,8 @@ function RootComponent() {
       <JsonLd data={[organizationLd(), websiteLd()]} />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      {/* Admin-driven floating WhatsApp bubble; self-hides on authenticated routes. */}
+      <FloatingWhatsApp />
       {/* Global toast host: mutation failures + explicit success/error toasts. */}
       <Toaster position="top-center" richColors closeButton />
     </QueryClientProvider>

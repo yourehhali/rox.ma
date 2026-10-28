@@ -745,13 +745,16 @@
       "SiteInfo": {
         "type": "object",
         "description": "Coordinates + service area + pricing disclaimer. Empty strings mean 'not yet configured' — the public UI hides any empty coordinate rather than showing fake data.",
-        "required": ["email", "phone", "whatsapp", "cities", "pricingNote"],
+        "required": ["email", "phone", "whatsapp", "cities", "pricingNote", "whatsappEnabled", "whatsappMessage", "whatsappPosition"],
         "properties": {
           "email": { "type": "string" },
           "phone": { "type": "string" },
           "whatsapp": { "type": "string" },
           "cities": { "type": "array", "items": { "type": "string" } },
-          "pricingNote": { "type": "string" }
+          "pricingNote": { "type": "string" },
+          "whatsappEnabled": { "type": "boolean", "description": "Shows the site-wide floating WhatsApp bubble when true (also requires a non-empty whatsapp number)." },
+          "whatsappMessage": { "type": "string", "description": "Optional pre-filled message appended to the wa.me link." },
+          "whatsappPosition": { "type": "string", "enum": ["left", "right"], "description": "Screen corner the bubble docks to." }
         }
       },
       "SiteContent": {

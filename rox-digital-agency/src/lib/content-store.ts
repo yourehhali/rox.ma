@@ -66,5 +66,14 @@ export const EMPTY_SITE_CONTENT: SiteContent = {
   services: [],
   plans: [],
   faqs: {},
-  info: { email: "", phone: "", whatsapp: "", cities: [], pricingNote: "" },
+  info: {
+    email: "",
+    phone: "",
+    whatsapp: "",
+    cities: [],
+    pricingNote: "",
+    whatsappEnabled: false,
+    whatsappMessage: "",
+    whatsappPosition: "right",
+  },
 };

@@ -271,6 +271,10 @@ export type SiteInfo = {
   whatsapp: string;
   cities: string[];
   pricingNote: string;
+  // Floating WhatsApp bubble config (admin-managed under Content → Coordonnées).
+  whatsappEnabled: boolean;
+  whatsappMessage: string;
+  whatsappPosition: "left" | "right";
 };
 
 export type SiteContent = {
