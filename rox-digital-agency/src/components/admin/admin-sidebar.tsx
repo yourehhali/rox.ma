@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, LogOut } from "lucide-react";
 import { Logo } from "@/components/rox/logo";
 import { navItems, type AdminSection } from "@/components/admin/data";
-import { ThemeToggle } from "@/components/rox/theme-toggle";
 import { cn } from "@/lib/utils";
 
 type AdminSidebarProps = {
@@ -72,10 +71,6 @@ export function AdminSidebar({ active, onSelect, onLogout, className }: AdminSid
             <LogOut size={15} />
           </button>
         )}
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-muted-foreground">Apparence</span>
-          <ThemeToggle />
-        </div>
       </div>
     </aside>
   );

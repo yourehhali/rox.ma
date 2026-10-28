@@ -8,9 +8,10 @@
  * ROX Agency design system.
  *
  * Flat, premium, minimal. Red #E31B23 is the single accent.
- * Light mode: white background, near-black text.
- * Dark mode: near-black background, white text.
- * Liquid glass surfaces adapt to both themes via the --glass-* tokens.
+ * Dark mode only: the .dark class is applied permanently at the document root
+ * (see __root.tsx), so the .dark token block below is what always renders. The
+ * :root values are unused fallbacks kept only so the token variables stay defined.
+ * Liquid glass surfaces read the dark --glass-* tokens.
  */
 
 @theme inline {
@@ -141,6 +142,7 @@
 
   html {
     scroll-behavior: smooth;
+    color-scheme: dark;
   }
 
   body {

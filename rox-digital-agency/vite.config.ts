@@ -5,7 +5,7 @@
 //     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
-import type { ConfigEnv, PluginOption, UserConfig } from "vite";
+import type { ConfigEnv, UserConfig } from "vite";
 
 // Build-time speed: the Lovable wrapper hard-codes the `vite-tsconfig-paths`
 // plugin, which its own [PLUGIN_TIMINGS] output reports as consuming 35–85% of
@@ -41,11 +41,14 @@ const lovableConfig = defineConfig({
 export default async (env: ConfigEnv): Promise<UserConfig> => {
   const config = await lovableConfig(env);
   if (Array.isArray(config.plugins)) {
-    // Await + flatten, then drop only the redundant plugin instance.
-    const flat = (await Promise.all(config.plugins as PluginOption[])).flat(Infinity) as PluginOption[];
-    config.plugins = flat.filter(
-      (p) => !(p && typeof p === "object" && "name" in p && p.name === "vite-tsconfig-paths"),
-    ) as NonNullable<UserConfig["plugins"]>;
+    // Await + flatten, then drop only the redundant plugin instance. Operate on
+    // `unknown[]` after flattening to sidestep Vite's deeply-recursive
+    // `FlatArray` generic (`.flat(Infinity)` trips TS2589 on the plugin union).
+    const resolved = (await Promise.all(config.plugins)) as unknown[];
+    const flat = resolved
+      .filter((p) => !(p && typeof p === "object" && "name" in p && (p as { name?: string }).name === "vite-tsconfig-paths"))
+      .flat(4);
+    config.plugins = flat as NonNullable<UserConfig["plugins"]>;
   }
   return config;
 };

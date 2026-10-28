@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Menu, User, X, ArrowUpRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Logo } from "@/components/rox/logo";
-import { ThemeToggle } from "./theme-toggle";
 
 const links = [
   { to: "/services", label: "Services" },
@@ -56,7 +55,6 @@ export function Navbar() {
           >
             <User size={16} />
           </Link>
-          <ThemeToggle />
           <Link
             to="/account"
             className="btn-glass-primary hidden items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-primary-foreground sm:inline-flex"

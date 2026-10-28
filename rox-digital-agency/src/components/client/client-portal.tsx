@@ -15,7 +15,6 @@ import {
 import { Logo } from "@/components/rox/logo";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/rox/notification-bell";
-import { ThemeToggle } from "@/components/rox/theme-toggle";
 import { useNotificationSocket } from "@/hooks/use-notification-socket";
 import { useClient } from "@/components/client/client-context";
 import { OnboardingWizard } from "@/components/client/onboarding-wizard";
@@ -262,10 +261,6 @@ function PortalSidebar({
           Se déconnecter
           <LogOut size={15} />
         </button>
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-muted-foreground">Apparence</span>
-          <ThemeToggle />
-        </div>
       </div>
     </aside>
   );

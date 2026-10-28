@@ -5,7 +5,6 @@ import { Logo } from "@/components/rox/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ThemeToggle } from "@/components/rox/theme-toggle";
 
 type AdminLoginProps = {
   onLogin: (email: string, password: string) => Promise<boolean>;
@@ -28,9 +27,6 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
-      <div className="absolute right-4 top-4">
-        <ThemeToggle />
-      </div>
 
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">

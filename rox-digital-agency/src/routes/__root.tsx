@@ -16,9 +16,6 @@ import { JsonLd } from "@/components/rox/json-ld";
 import { Toaster } from "@/components/ui/sonner";
 import { organizationLd, websiteLd } from "@/lib/seo";
 
-// Applies the saved theme before first paint to avoid a flash of the wrong mode.
-const themeInitScript = `(function(){try{var t=localStorage.getItem("rox-theme");var d=t?t==="dark":true;document.documentElement.classList.toggle("dark",d);}catch(e){document.documentElement.classList.add("dark");}})();`;
-
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -96,19 +93,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
-      {
-        rel: "icon",
-        href: "/light.ico",
-        type: "image/x-icon",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        rel: "icon",
-        href: "/dark.ico",
-        type: "image/x-icon",
-        media: "(prefers-color-scheme: dark)",
-      },
+      { rel: "icon", href: "/dark.ico", type: "image/x-icon" },
     ],
   }),
   shellComponent: RootShell,
@@ -119,9 +104,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr" suppressHydrationWarning>
+    // Dark-only: the .dark class is applied statically at the document root, so
+    // every design token resolves to its dark value and all `dark:` utilities
+    // render their dark branch. There is no light mode and no runtime toggle.
+    <html lang="fr" className="dark">
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <HeadContent />
       </head>
       <body>
