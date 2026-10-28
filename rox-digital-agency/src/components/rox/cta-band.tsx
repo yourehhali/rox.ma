@@ -14,7 +14,7 @@ export function CtaBand() {
             clair, sans engagement.
           </p>
           <Link
-            to="/account"
+            to="/contact"
             className="mt-8 inline-flex items-center gap-2 rounded-full bg-background px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-background/90"
           >
             Démarrer mon projet

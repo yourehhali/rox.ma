@@ -86,7 +86,7 @@ function AProposPage() {
 
             <div className="mt-12">
               <Link
-                to="/account"
+                to="/contact"
                 className="btn-glass-primary inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-primary-foreground"
               >
                 Démarrer mon projet

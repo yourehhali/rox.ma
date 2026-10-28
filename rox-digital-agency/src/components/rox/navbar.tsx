@@ -56,7 +56,7 @@ export function Navbar() {
             <User size={16} />
           </Link>
           <Link
-            to="/account"
+            to="/contact"
             className="btn-glass-primary hidden items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-primary-foreground sm:inline-flex"
           >
             Démarrer mon projet
@@ -103,7 +103,7 @@ export function Navbar() {
             </li>
             <li>
               <Link
-                to="/account"
+                to="/contact"
                 onClick={() => setOpen(false)}
                 className="mt-2 flex items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2.5 text-center text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
               >

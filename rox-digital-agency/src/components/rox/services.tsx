@@ -47,7 +47,7 @@ export function Services() {
               </p>
             </div>
             <Link
-              to="/account"
+              to="/contact"
               className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold underline-offset-4 hover:underline"
             >
               Démarrer mon projet

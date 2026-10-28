@@ -37,7 +37,7 @@ export function Pricing() {
                 ))}
               </ul>
               <Link
-                to="/account"
+                to="/contact"
                 className="btn-glass-primary mt-8 inline-flex items-center justify-center rounded-md px-5 py-2.5 text-sm font-semibold text-primary-foreground"
               >
                 Demander ce service
