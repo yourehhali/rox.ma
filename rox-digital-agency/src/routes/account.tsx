@@ -20,7 +20,7 @@ export const Route = createFileRoute("/account")({
 });
 
 function AccountPage() {
-  const { status, user, login, signup, logout } = useClientAuth();
+  const { status, user, requestOtp, resendOtp, verifyOtp, logout } = useClientAuth();
 
   if (status === "checking") {
     return (
@@ -31,7 +31,9 @@ function AccountPage() {
   }
 
   if (status === "guest" || !user) {
-    return <ClientLogin onLogin={login} onSignup={signup} />;
+    return (
+      <ClientLogin onRequestOtp={requestOtp} onResendOtp={resendOtp} onVerifyOtp={verifyOtp} />
+    );
   }
 
   return (

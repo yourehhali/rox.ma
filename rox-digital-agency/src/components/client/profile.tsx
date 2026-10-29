@@ -11,7 +11,8 @@ export function ProfilePanel({ user }: { user: ClientUser }) {
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <Row label="Nom" value={user.name} />
-          <Row label="E-mail" value={user.email} />
+          <Row label="WhatsApp" value={user.phone ?? "—"} />
+          {user.email ? <Row label="E-mail" value={user.email} /> : null}
         </CardContent>
       </Card>
 

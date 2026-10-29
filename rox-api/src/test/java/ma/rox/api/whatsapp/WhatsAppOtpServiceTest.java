@@ -1,6 +1,7 @@
 package ma.rox.api.whatsapp;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -92,6 +93,72 @@ class WhatsAppOtpServiceTest {
 
     // Must not propagate — signup can't fail on a WhatsApp hiccup.
     new WhatsAppOtpService(settings, client).sendSignupCode("+33600000000", "123456", 15, "Bob");
+  }
+
+  @Test
+  void sendLoginCodeSendsSynchronouslyWhenConfigured() {
+    WhatsAppSettingsService settings = mock(WhatsAppSettingsService.class);
+    WhatsAppClient client = mock(WhatsAppClient.class);
+    when(settings.effective()).thenReturn(configured());
+
+    new WhatsAppOtpService(settings, client).sendLoginCode("+33600000000", "123456", 15);
+
+    // name is null for login, so {name} collapses to empty.
+    verify(client).sendText(
+        eq("http://openwa:2785"), eq("k"), eq("sid"),
+        eq("33600000000@c.us"), eq("Code 123456 pour  (15 min)."));
+  }
+
+  @Test
+  void sendLoginCodeThrowsWhenDisabled() {
+    WhatsAppSettingsService settings = mock(WhatsAppSettingsService.class);
+    WhatsAppClient client = mock(WhatsAppClient.class);
+    when(settings.effective()).thenReturn(new Effective(
+        false, "http://openwa:2785", "k", "rox", "sid", "x"));
+
+    assertThatThrownBy(() -> new WhatsAppOtpService(settings, client)
+        .sendLoginCode("+33600000000", "123456", 15))
+        .isInstanceOf(ma.rox.api.error.ApiException.class);
+    verifyNoInteractions(client);
+  }
+
+  @Test
+  void sendLoginCodeThrowsWhenUnpaired() {
+    WhatsAppSettingsService settings = mock(WhatsAppSettingsService.class);
+    WhatsAppClient client = mock(WhatsAppClient.class);
+    when(settings.effective()).thenReturn(new Effective(
+        true, "http://openwa:2785", "k", "rox", "", "x")); // blank sessionId
+
+    assertThatThrownBy(() -> new WhatsAppOtpService(settings, client)
+        .sendLoginCode("+33600000000", "123456", 15))
+        .isInstanceOf(ma.rox.api.error.ApiException.class);
+    verifyNoInteractions(client);
+  }
+
+  @Test
+  void sendLoginCodeThrowsOnInvalidPhone() {
+    WhatsAppSettingsService settings = mock(WhatsAppSettingsService.class);
+    WhatsAppClient client = mock(WhatsAppClient.class);
+    when(settings.effective()).thenReturn(configured());
+
+    assertThatThrownBy(() -> new WhatsAppOtpService(settings, client)
+        .sendLoginCode("+3312345", "123456", 15))
+        .isInstanceOf(ma.rox.api.error.ApiException.class);
+    verifyNoInteractions(client);
+  }
+
+  @Test
+  void sendLoginCodeWrapsGatewayFailure() {
+    WhatsAppSettingsService settings = mock(WhatsAppSettingsService.class);
+    WhatsAppClient client = mock(WhatsAppClient.class);
+    when(settings.effective()).thenReturn(configured());
+    when(client.sendText(anyString(), anyString(), anyString(), anyString(), anyString()))
+        .thenThrow(new RuntimeException("gateway down"));
+
+    // Unlike the async signup path, a send failure must surface so the caller can retry.
+    assertThatThrownBy(() -> new WhatsAppOtpService(settings, client)
+        .sendLoginCode("+33600000000", "123456", 15))
+        .isInstanceOf(ma.rox.api.error.ApiException.class);
   }
 
   @Test

@@ -10,6 +10,7 @@ import ma.rox.api.auth.AuthDtos.ClientUserDto;
 import ma.rox.api.auth.AuthService;
 import ma.rox.api.auth.ClientAccount;
 import ma.rox.api.auth.ClientRepo;
+import ma.rox.api.common.PhoneNumbers;
 import ma.rox.api.error.ApiException;
 import ma.rox.api.events.Events;
 import ma.rox.api.portal.PortalDtos.*;
@@ -149,17 +150,19 @@ public class PortalService {
     return o;
   }
 
-  /** Public lead: an order with no owning account yet. Claimed by email at signup/login. */
+  /** Public lead: an order with no owning account yet. Claimed by phone at OTP verify. */
   @Transactional
   public Order createGuestOrder(GuestOrderRequest input) {
     Order o = new Order();
     o.setId(prefixed("o"));
     o.setClient(null);
-    o.setClientEmail(input.email().trim().toLowerCase());
-    o.setClientName(input.name().trim());
-    o.setClientPhone(input.phone().trim());
-    o.setTitle(input.title().trim());
-    o.setService(input.service().trim());
+    String phone = PhoneNumbers.normalize(input.phone());
+    String leadName = input.name() == null || input.name().isBlank() ? phone : input.name().trim();
+    o.setClientEmail(null);
+    o.setClientName(leadName);
+    o.setClientPhone(phone);
+    o.setTitle(input.title() == null || input.title().isBlank() ? "Nouvelle demande" : input.title().trim());
+    o.setService(input.service() == null ? "" : input.service().trim());
     String desc = input.description() == null ? "" : input.description();
     if (input.city() != null && !input.city().isBlank()) {
       desc = desc + "\n\nVille : " + input.city().trim();
@@ -198,6 +201,19 @@ public class PortalService {
     orders.save(o);
     events.publishEvent(new Events.OrderCreated(o.getId(), null, o.getTitle(), o.getService()));
     return o;
+  }
+
+  /** Attach every unclaimed lead matching this account's normalized phone. Returns the count claimed. */
+  @Transactional
+  public int claimLeadsForClientByPhone(ClientAccount c) {
+    if (c.getPhone() == null || c.getPhone().isBlank()) return 0;
+    List<Order> leads = orders.findByClientIdIsNullAndClientPhone(c.getPhone());
+    for (Order o : leads) {
+      o.setClient(c);
+      // Keep the captured contact as-is; the owning client is now authoritative.
+    }
+    if (!leads.isEmpty()) orders.saveAll(leads);
+    return leads.size();
   }
 
   /** Attach every unclaimed lead matching this account's email. Returns the count claimed. */

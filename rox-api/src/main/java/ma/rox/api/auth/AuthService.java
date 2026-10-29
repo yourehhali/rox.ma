@@ -2,15 +2,14 @@ package ma.rox.api.auth;
 
 import static ma.rox.api.common.IdGen.*;
 
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import ma.rox.api.common.PhoneNumbers;
 import ma.rox.api.error.ApiException;
-import ma.rox.api.error.ErrorCode;
 import ma.rox.api.security.JwtService;
 import ma.rox.api.security.RoxPrincipal;
 import ma.rox.api.security.Role;
-import org.springframework.beans.factory.annotation.Value;
+import ma.rox.api.whatsapp.WhatsAppOtpService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,80 +22,79 @@ public class AuthService {
   private final RefreshTokenRepo tokens;
   private final PasswordEncoder encoder;
   private final JwtService jwt;
-  private final VerificationOrchestrator verifier;
   private final ma.rox.api.portal.PortalService portal;
-  private final boolean verificationRequired;
-  private final Duration gracePeriod;
+  private final PhoneOtpService phoneOtp;
+  private final WhatsAppOtpService whatsapp;
 
   public AuthService(ClientRepo clients, AdminRepo admins, RefreshTokenRepo tokens,
-                     PasswordEncoder encoder, JwtService jwt, VerificationOrchestrator verifier,
+                     PasswordEncoder encoder, JwtService jwt,
                      ma.rox.api.portal.PortalService portal,
-                     @Value("${rox.verification.required:false}") boolean verificationRequired,
-                     @Value("${rox.verification.grace-hours:24}") long graceHours) {
+                     PhoneOtpService phoneOtp, WhatsAppOtpService whatsapp) {
     this.clients = clients;
     this.admins = admins;
     this.tokens = tokens;
     this.encoder = encoder;
     this.jwt = jwt;
-    this.verifier = verifier;
     this.portal = portal;
-    this.verificationRequired = verificationRequired;
-    this.gracePeriod = Duration.ofHours(graceHours);
+    this.phoneOtp = phoneOtp;
+    this.whatsapp = whatsapp;
   }
 
-  @Transactional
-  public AuthDtos.AuthSessionDto clientSignup(AuthDtos.ClientSignupRequest req) {
-    if (clients.existsByEmailIgnoreCase(req.email())) {
-      throw ApiException.conflict("Un compte existe déjà avec cet email.");
+  /**
+   * Issue a login OTP and deliver it over WhatsApp (synchronous, sole channel).
+   * If the send fails the pending OTP is discarded so the visitor is not stuck
+   * behind the 60s cooldown for a code that never arrived. Used by both the
+   * "send code" and "resend" endpoints.
+   */
+  public void sendLoginOtp(String phoneRaw) {
+    String phone = PhoneNumbers.normalize(phoneRaw);
+    String code = phoneOtp.issue(phone);
+    try {
+      whatsapp.sendLoginCode(phone, code, PhoneOtpService.TTL_MINUTES);
+    } catch (RuntimeException ex) {
+      phoneOtp.discard(phone);
+      throw ex;
     }
-    ClientAccount c = new ClientAccount();
-    c.setId(prefixed("c"));
-    c.setName(req.name().trim());
-    c.setEmail(req.email().trim().toLowerCase());
-    c.setPhone(normalizePhone(req.phone()));
-    c.setPasswordHash(encoder.encode(req.password()));
-    c.setCreatedAt(nowUtc());
-    c.setVerified(false);
-    clients.save(c);
+  }
 
-    // Attach any guest leads this email left behind before registering.
-    portal.claimLeadsForClient(c);
+  /**
+   * Verify a WhatsApp login code, then find-or-create the client account keyed
+   * on the normalized phone and return a fresh session. New accounts default
+   * their name to the phone number (the admin edits it later) and are marked
+   * verified. Any phone-matched guest lead is claimed onto the account.
+   */
+  @Transactional
+  public AuthDtos.AuthSessionDto verifyClientOtp(String phoneRaw, String code) {
+    String phone = PhoneNumbers.normalize(phoneRaw);
+    phoneOtp.verify(phone, code);
 
-    // Best-effort OTP dispatch (email + WhatsApp) so signup never fails on a send hiccup.
-    verifier.dispatchSignupBestEffort(c.getEmail(), c.getPhone(), c.getName());
+    ClientAccount c = clients.findByPhone(phone).orElseGet(() -> {
+      ClientAccount fresh = new ClientAccount();
+      fresh.setId(prefixed("c"));
+      fresh.setName(phone);
+      fresh.setPhone(phone);
+      fresh.setEmail(null);
+      fresh.setPasswordHash(null);
+      fresh.setCreatedAt(nowUtc());
+      fresh.setVerified(true);
+      fresh.setVerifiedAt(OffsetDateTime.now());
+      clients.save(fresh);
+      return fresh;
+    });
 
-    RoxPrincipal p = new RoxPrincipal(c.getId(), c.getEmail(), Role.CLIENT);
+    // Attach any guest leads this phone left behind before the account existed.
+    portal.claimLeadsForClientByPhone(c);
+
+    // Subject = account id (stable, non-null for WhatsApp-only accounts).
+    RoxPrincipal p = new RoxPrincipal(c.getId(), c.getId(), Role.CLIENT);
     return new AuthDtos.AuthSessionDto(
-        issueAccess(p), issueRefresh(p, Role.CLIENT, c.getEmail()),
+        issueAccess(p), issueRefresh(p, Role.CLIENT, c.getId()),
         jwt.accessTtl().toSeconds(), toClientDto(c));
   }
 
   @Transactional
-  public AuthDtos.AuthSessionDto clientLogin(AuthDtos.LoginRequest req) {
-    ClientAccount c = clients.findByEmailIgnoreCase(req.email())
-        .orElseThrow(() -> ApiException.unauthorized("Email ou mot de passe incorrect."));
-    if (!encoder.matches(req.password(), c.getPasswordHash())) {
-      throw ApiException.unauthorized("Email ou mot de passe incorrect.");
-    }
-    // Grace period lets existing accounts continue while verification is rolled out.
-    if (verificationRequired && !c.isVerified()) {
-      OffsetDateTime age = c.getCreatedAt() == null ? OffsetDateTime.now() : c.getCreatedAt();
-      if (OffsetDateTime.now().minus(gracePeriod).isAfter(age)) {
-        throw new ApiException(403, ErrorCode.forbidden,
-            "Veuillez vérifier votre email avant de continuer.");
-      }
-    }
-    // An existing account may have left a guest lead behind under this email.
-    portal.claimLeadsForClient(c);
-    RoxPrincipal p = new RoxPrincipal(c.getId(), c.getEmail(), Role.CLIENT);
-    return new AuthDtos.AuthSessionDto(
-        issueAccess(p), issueRefresh(p, Role.CLIENT, c.getEmail()),
-        jwt.accessTtl().toSeconds(), toClientDto(c));
-  }
-
-  @Transactional
-  public void clientLogout(String email) {
-    tokens.deleteBySubject(email.toLowerCase());
+  public void clientLogout(String subjectId) {
+    tokens.deleteBySubject(subjectId.toLowerCase());
   }
 
   public AuthDtos.ClientUserDto clientMe(String id) {
@@ -136,11 +134,11 @@ public class AuthService {
   @Transactional
   public AuthDtos.AuthSessionDto clientRefresh(String refreshToken) {
     JwtService.DecodedToken d = consume(refreshToken, Role.CLIENT);
-    ClientAccount c = clients.findByEmailIgnoreCase(d.principal().email())
+    ClientAccount c = clients.findById(d.principal().id())
         .orElseThrow(() -> ApiException.unauthorized("Session expirée."));
-    RoxPrincipal p = new RoxPrincipal(c.getId(), c.getEmail(), Role.CLIENT);
+    RoxPrincipal p = new RoxPrincipal(c.getId(), c.getId(), Role.CLIENT);
     return new AuthDtos.AuthSessionDto(
-        issueAccess(p), issueRefresh(p, Role.CLIENT, c.getEmail()),
+        issueAccess(p), issueRefresh(p, Role.CLIENT, c.getId()),
         jwt.accessTtl().toSeconds(), toClientDto(c));
   }
 
@@ -176,11 +174,11 @@ public class AuthService {
     return jwt.issueAccess(p, jti());
   }
 
-  private String issueRefresh(RoxPrincipal p, Role role, String email) {
+  private String issueRefresh(RoxPrincipal p, Role role, String subject) {
     String jti = jti();
     RefreshToken t = new RefreshToken();
     t.setJti(jti);
-    t.setSubject(email.toLowerCase());
+    t.setSubject(subject.toLowerCase());
     t.setRole(role.name());
     t.setExpiresAt(nowUtc().plus(jwt.refreshTtl()));
     t.setRevoked(false);
@@ -196,15 +194,5 @@ public class AuthService {
 
   public static AuthDtos.AdminUserDto toAdminDto(AdminAccount a) {
     return new AuthDtos.AdminUserDto(a.getId(), a.getEmail(), a.getName(), iso(a.getCreatedAt()));
-  }
-
-  /** Strip spaces / dashes / parens; keep leading +. Empty string → null. */
-  private static String normalizePhone(String raw) {
-    if (raw == null) return null;
-    String t = raw.trim();
-    if (t.isEmpty()) return null;
-    boolean plus = t.startsWith("+");
-    String digits = t.replaceAll("[^0-9]", "");
-    return plus ? "+" + digits : digits;
   }
 }

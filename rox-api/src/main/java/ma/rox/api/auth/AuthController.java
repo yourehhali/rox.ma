@@ -3,7 +3,6 @@ package ma.rox.api.auth;
 import jakarta.validation.Valid;
 import ma.rox.api.security.CurrentUser;
 import ma.rox.api.security.RoxPrincipal;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,25 +12,32 @@ public class AuthController {
 
   private final AuthService svc;
   private final CurrentUser me;
-  private final EmailVerificationService otp;
-  private final VerificationOrchestrator verifier;
 
-  public AuthController(AuthService svc, CurrentUser me, EmailVerificationService otp,
-                        VerificationOrchestrator verifier) {
+  public AuthController(AuthService svc, CurrentUser me) {
     this.svc = svc;
     this.me = me;
-    this.otp = otp;
-    this.verifier = verifier;
   }
 
-  @PostMapping("/client/signup")
-  public ResponseEntity<AuthDtos.AuthSessionDto> clientSignup(@Valid @RequestBody AuthDtos.ClientSignupRequest req) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(svc.clientSignup(req));
+  // --- Client: WhatsApp number + OTP only (no email, no password) -----------
+
+  /** Start login: issue an OTP and send it over WhatsApp (synchronous). */
+  @PostMapping("/client/otp")
+  public ResponseEntity<Void> clientOtp(@Valid @RequestBody AuthDtos.OtpStartRequest req) {
+    svc.sendLoginOtp(req.phone());
+    return ResponseEntity.accepted().build();
   }
 
-  @PostMapping("/client/login")
-  public AuthDtos.AuthSessionDto clientLogin(@Valid @RequestBody AuthDtos.LoginRequest req) {
-    return svc.clientLogin(req);
+  /** Alias for retrying the code; identical to /client/otp. */
+  @PostMapping("/client/resend")
+  public ResponseEntity<Void> clientResend(@Valid @RequestBody AuthDtos.OtpStartRequest req) {
+    svc.sendLoginOtp(req.phone());
+    return ResponseEntity.accepted().build();
+  }
+
+  /** Verify the code and return a client session. */
+  @PostMapping("/client/verify")
+  public AuthDtos.AuthSessionDto clientVerify(@Valid @RequestBody AuthDtos.OtpVerifyRequest req) {
+    return svc.verifyClientOtp(req.phone(), req.code());
   }
 
   @PostMapping("/client/refresh")
@@ -42,7 +48,7 @@ public class AuthController {
   @PostMapping("/client/logout")
   public ResponseEntity<Void> clientLogout() {
     RoxPrincipal p = me.require();
-    svc.clientLogout(p.email());
+    svc.clientLogout(p.id());
     return ResponseEntity.noContent().build();
   }
 
@@ -50,6 +56,8 @@ public class AuthController {
   public AuthDtos.ClientUserDto clientMe() {
     return svc.clientMe(me.requireClient().id());
   }
+
+  // --- Admin: email + password (unchanged) ---------------------------------
 
   @PostMapping("/admin/login")
   public AuthDtos.AdminAuthSessionDto adminLogin(@Valid @RequestBody AuthDtos.LoginRequest req) {
@@ -71,17 +79,5 @@ public class AuthController {
   @GetMapping("/admin/me")
   public AuthDtos.AdminUserDto adminMe() {
     return svc.adminMe(me.requireAdmin().id());
-  }
-
-  @PostMapping("/client/verify")
-  public ResponseEntity<Void> clientVerify(@Valid @RequestBody AuthDtos.VerifyOtpRequest req) {
-    otp.verify(req.email(), req.code());
-    return ResponseEntity.noContent().build();
-  }
-
-  @PostMapping("/client/resend-otp")
-  public ResponseEntity<Void> clientResendOtp(@Valid @RequestBody AuthDtos.ResendOtpRequest req) {
-    verifier.resend(req.email());
-    return ResponseEntity.accepted().build();
   }
 }

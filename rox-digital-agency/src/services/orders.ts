@@ -42,8 +42,9 @@ export async function createOrder(input: NewOrderInput): Promise<Order> {
 
 /**
  * Public guest order. `/orders/guest` falls under the `/orders` client-path
- * prefix, so we must force `anonymous` to avoid attaching a (missing) client
- * bearer. The server stores the order as an unclaimed lead keyed by email.
+ * prefix, so we force `anonymous` to avoid attaching a (missing) client bearer.
+ * The server stores the order as an unclaimed lead keyed by the WhatsApp phone;
+ * it is claimed onto a new account when the client verifies their login code.
  */
 export async function createGuestOrder(input: GuestOrderInput): Promise<Order> {
   const raw = await apiFetch<RawOrder>(

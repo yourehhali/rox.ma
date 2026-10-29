@@ -18,7 +18,6 @@ import { Route as MethodeRouteImport } from './routes/methode'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as ServicesRouteImport } from './routes/services'
 import { Route as TarifsRouteImport } from './routes/tarifs'
-import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as ServicesIndexRouteImport } from './routes/services.index'
 import { Route as ServicesSlugRouteImport } from './routes/services.$slug'
 
@@ -67,11 +66,6 @@ const TarifsRoute = TarifsRouteImport.update({
   path: '/tarifs',
   getParentRoute: () => rootRouteImport,
 } as any)
-const VerifyEmailRoute = VerifyEmailRouteImport.update({
-  id: '/verify-email',
-  path: '/verify-email',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ServicesIndexRoute = ServicesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -93,7 +87,6 @@ export interface FileRoutesByFullPath {
   '/portfolio': typeof PortfolioRoute
   '/services': typeof ServicesRouteWithChildren
   '/tarifs': typeof TarifsRoute
-  '/verify-email': typeof VerifyEmailRoute
   '/services/$slug': typeof ServicesSlugRoute
   '/services/': typeof ServicesIndexRoute
 }
@@ -106,7 +99,6 @@ export interface FileRoutesByTo {
   '/methode': typeof MethodeRoute
   '/portfolio': typeof PortfolioRoute
   '/tarifs': typeof TarifsRoute
-  '/verify-email': typeof VerifyEmailRoute
   '/services/$slug': typeof ServicesSlugRoute
   '/services': typeof ServicesIndexRoute
 }
@@ -121,7 +113,6 @@ export interface FileRoutesById {
   '/portfolio': typeof PortfolioRoute
   '/services': typeof ServicesRouteWithChildren
   '/tarifs': typeof TarifsRoute
-  '/verify-email': typeof VerifyEmailRoute
   '/services/$slug': typeof ServicesSlugRoute
   '/services/': typeof ServicesIndexRoute
 }
@@ -137,7 +128,6 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/services'
     | '/tarifs'
-    | '/verify-email'
     | '/services/$slug'
     | '/services/'
   fileRoutesByTo: FileRoutesByTo
@@ -150,7 +140,6 @@ export interface FileRouteTypes {
     | '/methode'
     | '/portfolio'
     | '/tarifs'
-    | '/verify-email'
     | '/services/$slug'
     | '/services'
   id:
@@ -164,7 +153,6 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/services'
     | '/tarifs'
-    | '/verify-email'
     | '/services/$slug'
     | '/services/'
   fileRoutesById: FileRoutesById
@@ -179,7 +167,6 @@ export interface RootRouteChildren {
   PortfolioRoute: typeof PortfolioRoute
   ServicesRoute: typeof ServicesRouteWithChildren
   TarifsRoute: typeof TarifsRoute
-  VerifyEmailRoute: typeof VerifyEmailRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -247,13 +234,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TarifsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/verify-email': {
-      id: '/verify-email'
-      path: '/verify-email'
-      fullPath: '/verify-email'
-      preLoaderRoute: typeof VerifyEmailRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/services/': {
       id: '/services/'
       path: '/'
@@ -295,7 +275,6 @@ const rootRouteChildren: RootRouteChildren = {
   PortfolioRoute: PortfolioRoute,
   ServicesRoute: ServicesRouteWithChildren,
   TarifsRoute: TarifsRoute,
-  VerifyEmailRoute: VerifyEmailRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -13,20 +13,20 @@ public final class AuthDtos {
   public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
 
   /**
-   * Password policy: min 8 chars, at least one lowercase, one uppercase, one digit.
-   * Phone: optional leading +, 8-15 digits total (E.164-ish).
+   * Phone pattern for the WhatsApp OTP flow: optional leading +, 8-15 digits
+   * (E.164-ish). Mirrors the client lead capture on the backend.
    */
-  public record ClientSignupRequest(
-      @NotBlank @Size(min = 2, max = 80) String name,
-      @NotBlank @Email String email,
+  public record OtpStartRequest(
+      @NotBlank
+      @Pattern(regexp = "^\\+?[0-9]{8,15}$", message = "Format de téléphone invalide")
+      String phone) {}
+
+  /** OTP verify payload: the same phone the code was sent to + the 6-digit code. */
+  public record OtpVerifyRequest(
       @NotBlank
       @Pattern(regexp = "^\\+?[0-9]{8,15}$", message = "Format de téléphone invalide")
       String phone,
-      @NotBlank
-      @Pattern(
-          regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,200}$",
-          message = "Le mot de passe doit contenir au moins 8 caractères avec une majuscule, une minuscule et un chiffre")
-      String password) {}
+      @NotBlank @Pattern(regexp = "^[0-9]{6}$", message = "Code invalide") String code) {}
 
   /** Update payload — every field optional; blank/null fields are ignored by the service. */
   public record ClientUpdateRequest(
@@ -57,11 +57,4 @@ public final class AuthDtos {
 
   /** Generic refresh payload. */
   public record RefreshRequest(@NotBlank String refreshToken) {}
-
-  /** Verify / resend OTP payloads (Phase 3). */
-  public record VerifyOtpRequest(
-      @NotBlank @Email String email,
-      @NotBlank @Pattern(regexp = "^[0-9]{6}$", message = "Code invalide") String code) {}
-
-  public record ResendOtpRequest(@NotBlank @Email String email) {}
 }

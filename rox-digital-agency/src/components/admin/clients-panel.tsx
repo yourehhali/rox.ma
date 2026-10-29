@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Mail, MessageSquare } from "lucide-react";
+import { MessageSquare, Phone } from "lucide-react";
 import type { AdminPortal } from "@/hooks/use-admin-portal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,8 @@ export function ClientsPanel({
               )}
             </div>
             <CardDescription className="flex items-center gap-1.5">
-              <Mail size={13} /> <span className="truncate">{r.user.email}</span>
+              <Phone size={13} />{" "}
+              <span className="truncate">{r.user.phone || r.user.email || "Numéro non renseigné"}</span>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

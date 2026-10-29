@@ -60,33 +60,34 @@ export function useClientAuth() {
     };
   }, [queryClient]);
 
-  const login = useCallback(async (email: string, password: string): Promise<AuthResult> => {
+  const requestOtp = useCallback(async (phone: string): Promise<AuthResult> => {
     try {
-      const session = await auth.loginClient({ email, password });
+      await auth.requestClientOtp(phone);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Envoi du code impossible." };
+    }
+  }, []);
+
+  const resendOtp = useCallback(async (phone: string): Promise<AuthResult> => {
+    try {
+      await auth.resendClientOtp(phone);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Envoi du code impossible." };
+    }
+  }, []);
+
+  const verifyOtp = useCallback(async (phone: string, code: string): Promise<AuthResult> => {
+    try {
+      const session = await auth.verifyClientOtp(phone, code);
       setUser(session.user);
       setStatus("authed");
       return { ok: true };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : "Connexion impossible." };
+      return { ok: false, error: err instanceof Error ? err.message : "Vérification impossible." };
     }
   }, []);
-
-  const signup = useCallback(
-    async (name: string, email: string, phone: string, password: string): Promise<AuthResult> => {
-      try {
-        const session = await auth.signupClient({ name, email, phone, password });
-        setUser(session.user);
-        setStatus("authed");
-        return { ok: true };
-      } catch (err) {
-        return {
-          ok: false,
-          error: err instanceof Error ? err.message : "Création du compte impossible.",
-        };
-      }
-    },
-    [],
-  );
 
   const logout = useCallback(() => {
     void auth.logoutClient();
@@ -96,5 +97,5 @@ export function useClientAuth() {
     queryClient.clear();
   }, [queryClient]);
 
-  return { status, user, signup, login, logout };
+  return { status, user, requestOtp, resendOtp, verifyOtp, logout };
 }

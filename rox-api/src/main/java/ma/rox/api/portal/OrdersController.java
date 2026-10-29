@@ -40,7 +40,12 @@ public class OrdersController {
     return ResponseEntity.status(HttpStatus.CREATED).body(svc.toDto(o));
   }
 
-  /** Public lead capture: no account required. Claimed by email at signup/login. */
+  /**
+   * Public lead capture: no account required. Stores an unclaimed lead keyed by
+   * the WhatsApp phone. The client then requests a login code out-of-band
+   * (/auth/client/otp) and verifies it to claim this lead onto their new
+   * account. Kept free of OTP delivery so a retry never duplicates the lead.
+   */
   @PostMapping("/guest")
   public ResponseEntity<OrderDto> createGuest(@Valid @RequestBody GuestOrderRequest input) {
     Order o = svc.createGuestOrder(input);

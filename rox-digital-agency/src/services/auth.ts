@@ -8,7 +8,6 @@ import type {
   AdminSession,
   AdminUser,
   ClientSession,
-  ClientSignupInput,
   ClientUser,
   LoginInput,
 } from "@/lib/api/types";
@@ -21,20 +20,31 @@ function commitSession(role: Role, session: ClientSession | AdminSession): void 
   setCachedUser(role, session.user);
 }
 
-export async function signupClient(input: ClientSignupInput): Promise<ClientSession> {
-  const session = await apiFetch<ClientSession>(
-    "/auth/client/signup",
-    { method: "POST", body: input },
+// --- Client: WhatsApp number + OTP only (no email, no password) -------------
+
+/** Issue a login OTP and deliver it over WhatsApp. Throws on delivery failure. */
+export async function requestClientOtp(phone: string): Promise<void> {
+  await apiFetch<void>(
+    "/auth/client/otp",
+    { method: "POST", body: { phone } },
     { anonymous: true, role: "client" },
   );
-  commitSession("client", session);
-  return session;
 }
 
-export async function loginClient(input: LoginInput): Promise<ClientSession> {
+/** Re-send the login code to the same phone (honours the server cooldown). */
+export async function resendClientOtp(phone: string): Promise<void> {
+  await apiFetch<void>(
+    "/auth/client/resend",
+    { method: "POST", body: { phone } },
+    { anonymous: true, role: "client" },
+  );
+}
+
+/** Verify the code, commit the resulting client session and return it. */
+export async function verifyClientOtp(phone: string, code: string): Promise<ClientSession> {
   const session = await apiFetch<ClientSession>(
-    "/auth/client/login",
-    { method: "POST", body: input },
+    "/auth/client/verify",
+    { method: "POST", body: { phone, code } },
     { anonymous: true, role: "client" },
   );
   commitSession("client", session);

@@ -8,7 +8,8 @@
 export type ClientUser = {
   id: string;
   name: string;
-  email: string;
+  /** Null for WhatsApp-only accounts (no email on file). */
+  email?: string | null;
   phone?: string;
   verified?: boolean;
   createdAt?: string;
@@ -32,12 +33,8 @@ export type AuthSession<TUser> = {
 export type ClientSession = AuthSession<ClientUser>;
 export type AdminSession = AuthSession<AdminUser>;
 
-export type ClientSignupInput = {
-  name: string;
-  email: string;
-  phone: string;
-  password: string;
-};
+// Client login is WhatsApp number + OTP only: no signup, no password.
+// `requestClientOtp` / `verifyClientOtp` take a bare phone (+ optional code).
 
 export type LoginInput = {
   email: string;
@@ -118,21 +115,21 @@ export type NewOrderInput = {
 };
 
 /**
- * Public guest-order payload — mirrors `PortalDtos.GuestOrderRequest`. The
- * order is stored as an unclaimed lead keyed by `email`; signup/login claims
- * it server-side.
+ * Public guest-order payload — mirrors `PortalDtos.GuestOrderRequest`. Only the
+ * WhatsApp `phone` and a free-text `description` are required; the order is
+ * stored as an unclaimed lead keyed by phone and claimed at OTP verify. The
+ * admin fleshes out the rest later.
  */
 export type GuestOrderInput = {
-  name: string;
-  email: string;
   phone: string;
-  city?: string | undefined;
-  title: string;
-  service: string;
   description: string;
-  budget: string;
-  deadline: string;
-  pastServices: Omit<ServiceHistoryItem, "id">[];
+  name?: string | undefined;
+  city?: string | undefined;
+  title?: string | undefined;
+  service?: string | undefined;
+  budget?: string | undefined;
+  deadline?: string | undefined;
+  pastServices?: Omit<ServiceHistoryItem, "id">[] | undefined;
 };
 
 export type ChangeRequestInput = {

@@ -12,8 +12,9 @@ import lombok.Setter;
 public class ClientAccount {
   @Id @Column(name = "id") private String id;
   @Column(nullable = false) private String name;
-  @Column(nullable = false, unique = true) private String email;
-  @Column(name = "password_hash", nullable = false) private String passwordHash;
+  // WhatsApp-only accounts have no email/password; phone is the login key.
+  @Column(unique = true) private String email;
+  @Column(name = "password_hash") private String passwordHash;
   @Column(name = "created_at", nullable = false) private OffsetDateTime createdAt;
   @Column(name = "phone") private String phone;
   @Column(name = "verified", nullable = false) private boolean verified = false;

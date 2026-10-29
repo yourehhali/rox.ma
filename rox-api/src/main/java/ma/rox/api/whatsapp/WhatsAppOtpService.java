@@ -44,6 +44,41 @@ public class WhatsAppOtpService {
     }
   }
 
+  /**
+   * Synchronous login OTP delivery. Unlike {@link #sendSignupCode} this runs on
+   * the request thread and throws {@link ApiException} (400) when WhatsApp is
+   * unusable or the send fails, so the caller can clear the cooldown and let the
+   * visitor retry. There is no email fallback: this is the only channel.
+   */
+  public void sendLoginCode(String phone, String code, long minutes) {
+    WhatsAppSettingsService.Effective e = settings.effective();
+    if (!e.enabled()) {
+      throw ma.rox.api.error.ApiException.badRequest(
+          "Connexion WhatsApp indisponible pour le moment. Réessayez plus tard.");
+    }
+    if (e.baseUrl() == null || e.baseUrl().isBlank() || e.apiKey() == null || e.apiKey().isBlank()) {
+      throw ma.rox.api.error.ApiException.badRequest(
+          "Connexion WhatsApp indisponible pour le moment. Réessayez plus tard.");
+    }
+    if (e.sessionId() == null || e.sessionId().isBlank()) {
+      throw ma.rox.api.error.ApiException.badRequest(
+          "Connexion WhatsApp indisponible pour le moment. Réessayez plus tard.");
+    }
+    String chatId = toChatId(phone);
+    if (chatId == null) {
+      throw ma.rox.api.error.ApiException.badRequest("Numéro WhatsApp invalide.");
+    }
+    String text = format(e.messageTemplate(), code, minutes, null);
+    try {
+      client.sendText(e.baseUrl(), e.apiKey(), e.sessionId(), chatId, text);
+      log.info("WhatsApp login OTP sent to {}", chatId);
+    } catch (Exception ex) {
+      log.error("WhatsApp login OTP send FAILED for {}: {}", phone, ex.getMessage(), ex);
+      throw ma.rox.api.error.ApiException.badRequest(
+          "Envoi WhatsApp impossible. Vérifiez le numéro et réessayez.");
+    }
+  }
+
   /** Admin "send test" — synchronous so the panel can surface success/failure. */
   public SendResult sendTest(String phone) {
     WhatsAppSettingsService.Effective e = settings.effective();

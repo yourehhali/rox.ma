@@ -55,10 +55,10 @@ public class SecurityConfig {
             .permissionsPolicyHeader(pp -> pp.policy(
                 "camera=(), geolocation=(), microphone=(), payment=()")))
         .authorizeHttpRequests(auth -> auth
-            .requestMatchers("/auth/client/signup", "/auth/client/login", "/auth/client/refresh",
-                          "/auth/client/verify", "/auth/client/resend-otp",
+            .requestMatchers("/auth/client/otp", "/auth/client/verify", "/auth/client/resend",
+                          "/auth/client/refresh",
                           "/auth/admin/login", "/auth/admin/refresh").permitAll()
-            // Public lead capture (guest order wizard).
+            // Public lead capture (WhatsApp number + description intake).
             .requestMatchers(HttpMethod.POST, "/orders/guest").permitAll()
             .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/actuator/**").permitAll()
             .requestMatchers("/ws/**", "/topic/**", "/queue/**", "/app/**").permitAll()

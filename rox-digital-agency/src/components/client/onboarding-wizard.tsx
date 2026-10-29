@@ -6,15 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { ClientContext } from "@/components/client/client-context";
-import { createGuestOrder } from "@/services/orders";
 import { SERVICES, uid, type ServiceHistoryItem } from "@/lib/client-store";
 import { useSiteContent } from "@/hooks/use-site-content";
 import { cn } from "@/lib/utils";
 
-// Three-step wizard: a public visitor (guest mode) captures enough to store the
-// order as an unclaimed lead, then registers to claim it; an authenticated
-// client (authed mode) skips name/email (known from the account) and files the
-// order directly against their session.
+// Three-step wizard for an authenticated client: the name/WhatsApp number come
+// from the account, and the order is filed directly against the current session.
+// (Public visitors now use the lean WhatsApp + description intake on the contact
+// page.)
 const STEPS = ["Votre projet", "Détails & budget", "Coordonnées"];
 
 const BUDGETS = [
@@ -27,35 +26,26 @@ const BUDGETS = [
 
 /** Loose E.164-ish phone check mirrored on the backend. */
 const PHONE_RE = /^\+?[0-9]{8,15}$/;
-/** Basic email shape check; the backend `@Email` is the authority. */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** Lead contact handed back to the caller after a successful guest submit. */
-export type GuestLead = { name: string; email: string; phone: string };
 
 type FieldKey =
-  "activity" | "services" | "title" | "description" | "name" | "email" | "phone" | "deadline";
+  "activity" | "services" | "title" | "description" | "phone" | "deadline";
 
 type WizardProps = {
-  onComplete: (orderId?: string, lead?: GuestLead) => void;
+  onComplete: () => void;
   onCancel?: (() => void) | undefined;
-  /** "guest" files a public lead; "authed" files against the current session. */
-  mode?: "guest" | "authed";
-  /** Authed mode: prefill (and hide) name/email from the account. */
+  /** Prefill (and hide) the name/WhatsApp number from the signed-in account. */
   defaultName?: string;
-  defaultEmail?: string;
+  defaultPhone?: string;
 };
 
 export function OnboardingWizard({
   onComplete,
   onCancel,
-  mode = "authed",
   defaultName = "",
-  defaultEmail = "",
+  defaultPhone = "",
 }: WizardProps) {
-  const isGuest = mode === "guest";
-  // Read the context directly (rather than `useClient()`) so the wizard can run
-  // outside a ClientProvider in guest mode.
+  // Read the context directly (rather than `useClient()`) so the wizard stays
+  // decoupled from the provider wiring.
   const clientCtx = useContext(ClientContext);
   const content = useSiteContent();
   const [step, setStep] = useState(0);
@@ -71,9 +61,7 @@ export function OnboardingWizard({
   const [budget, setBudget] = useState<string>(BUDGETS[0] ?? "À définir");
   const [deadline, setDeadline] = useState("");
   const [pastServices, setPastServices] = useState<ServiceHistoryItem[]>([]);
-  const [name, setName] = useState(defaultName);
-  const [email, setEmail] = useState(defaultEmail);
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(defaultPhone);
   const [city, setCity] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -147,10 +135,6 @@ export function OnboardingWizard({
     if (services.length === 0) e.services = "Sélectionnez au moins un service.";
     if (!title.trim()) e.title = "Renseignez le titre du projet.";
     if (!description.trim()) e.description = "Décrivez le projet.";
-    if (isGuest) {
-      if (name.trim().length < 2) e.name = "Indiquez votre nom.";
-      if (!EMAIL_RE.test(email.trim())) e.email = "Adresse e-mail invalide.";
-    }
     const t = phone.trim();
     if (!t) e.phone = "Le téléphone est requis.";
     else if (!PHONE_RE.test(t)) e.phone = "Format invalide (8 à 15 chiffres, « + » optionnel).";
@@ -160,16 +144,14 @@ export function OnboardingWizard({
       else if (d < minDeadline) e.deadline = "Le délai souhaité doit être dans au moins 5 jours.";
     }
     return e;
-  }, [activity, services, title, description, isGuest, name, email, phone, deadline, minDeadline]);
+  }, [activity, services, title, description, phone, deadline, minDeadline]);
 
   const stepKeys = (): FieldKey[] =>
     step === 0
       ? ["activity", "services"]
       : step === 1
         ? ["title", "description", "deadline"]
-        : isGuest
-          ? ["name", "email", "phone"]
-          : ["phone"];
+        : ["phone"];
 
   const showErr = (k: FieldKey) => (touched[k] ? fieldErrors[k] : undefined);
   const markTouched = (k: FieldKey) => setTouched((p) => (p[k] ? p : { ...p, [k]: true }));
@@ -198,46 +180,15 @@ export function OnboardingWizard({
   const submit = async () => {
     if (!validateStep()) return;
     const cleanPast = pastServices.filter((p) => p.service.trim());
-    const baseDescription = description.trim();
-    // The wizard used to discard `activity`/`goal`; fold them into the free-text
-    // description so the lead carries the same context (authed path keeps the
-    // original NewOrderInput contract unchanged).
-    const composedDescription = isGuest
-      ? [
-          baseDescription,
-          activity.trim() ? `Activité : ${activity.trim()}` : null,
-          goal.trim() ? `Objectif : ${goal.trim()}` : null,
-        ]
-          .filter(Boolean)
-          .join("\n\n")
-      : baseDescription;
-
-    if (isGuest) {
-      setSubmitting(true);
-      try {
-        const order = await createGuestOrder({
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          city: city.trim() || undefined,
-          title: title.trim(),
-          service: services.join(" · "),
-          description: composedDescription,
-          budget,
-          deadline: deadline || "À convenir",
-          pastServices: cleanPast,
-        });
-        onComplete(order.id, {
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-        });
-      } catch (err) {
-        fail(err instanceof Error && err.message ? err.message : "Envoi impossible. Réessayez.");
-        setSubmitting(false);
-      }
-      return;
-    }
+    // Fold `activity`/`goal` into the free-text description so the order carries
+    // the same context the client typed at step 1.
+    const composedDescription = [
+      description.trim(),
+      activity.trim() ? `Activité : ${activity.trim()}` : null,
+      goal.trim() ? `Objectif : ${goal.trim()}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
     if (!clientCtx) {
       fail("Session expirée — reconnectez-vous pour envoyer votre demande.");
@@ -492,44 +443,14 @@ export function OnboardingWizard({
               </p>
             </div>
 
-            {isGuest ? (
+            <div className="space-y-4">
+              <Field label="Nom">
+                <Input value={defaultName} readOnly disabled />
+              </Field>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Nom complet" error={showErr("name")}>
-                  <Input
-                    value={name}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      setError(null);
-                    }}
-                    onBlur={() => markTouched("name")}
-                    aria-invalid={!!showErr("name")}
-                    className={cn(showErr("name") && "border-destructive")}
-                    placeholder="Votre nom"
-                    autoComplete="name"
-                  />
-                </Field>
                 <Field
-                  label="E-mail"
-                  hint="Sera utilisé pour créer et retrouver votre compte."
-                  error={showErr("email")}
-                >
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setError(null);
-                    }}
-                    onBlur={() => markTouched("email")}
-                    aria-invalid={!!showErr("email")}
-                    className={cn(showErr("email") && "border-destructive")}
-                    placeholder="vous@exemple.ma"
-                    autoComplete="email"
-                  />
-                </Field>
-                <Field
-                  label="Téléphone"
-                  hint="Format international, ex. +212 6 12 34 56 78."
+                  label="Téléphone WhatsApp"
+                  hint="Le numéro de votre compte — modifiable si besoin."
                   error={showErr("phone")}
                 >
                   <Input
@@ -554,46 +475,7 @@ export function OnboardingWizard({
                   />
                 </Field>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Nom">
-                    <Input value={name || defaultName} readOnly disabled />
-                  </Field>
-                  <Field label="E-mail">
-                    <Input type="email" value={email || defaultEmail} readOnly disabled />
-                  </Field>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field
-                    label="Téléphone"
-                    hint="Format international, ex. +212 6 12 34 56 78."
-                    error={showErr("phone")}
-                  >
-                    <Input
-                      value={phone}
-                      onChange={(e) => {
-                        setPhone(e.target.value);
-                        setError(null);
-                      }}
-                      onBlur={() => markTouched("phone")}
-                      aria-invalid={!!showErr("phone")}
-                      className={cn(showErr("phone") && "border-destructive")}
-                      placeholder="+212…"
-                      inputMode="tel"
-                      autoComplete="tel"
-                    />
-                  </Field>
-                  <Field label="Ville" hint="Optionnel.">
-                    <Input
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="Oujda"
-                    />
-                  </Field>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -626,7 +508,7 @@ export function OnboardingWizard({
               </>
             ) : (
               <>
-                <Check size={16} /> {isGuest ? "Envoyer ma demande" : "Envoyer la demande"}
+                <Check size={16} /> Envoyer la demande
               </>
             )}
           </Button>

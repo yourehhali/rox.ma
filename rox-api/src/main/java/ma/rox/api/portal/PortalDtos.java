@@ -55,19 +55,22 @@ public final class PortalDtos {
       String phone,
       @jakarta.validation.constraints.NotNull List<ServiceHistoryInput> pastServices) {}
 
-  /** Public lead submitted before an account exists; claimed by email at signup/login. */
+  /**
+   * Public lead submitted before an account exists; claimed by WhatsApp phone at
+   * OTP verify. Only the phone number and a free-text description are required —
+   * the admin fleshes out the order (title/service/budget/deadline) later.
+   */
   public record GuestOrderRequest(
-      @NotBlank @jakarta.validation.constraints.Size(min = 2, max = 80) String name,
-      @NotBlank @jakarta.validation.constraints.Email String email,
+      @jakarta.validation.constraints.Size(min = 2, max = 80) String name,
       @NotBlank @jakarta.validation.constraints.Pattern(regexp = "^\\+?[0-9]{8,15}$", message = "Format de téléphone invalide")
       String phone,
       @jakarta.validation.constraints.Size(max = 60) String city,
-      @NotBlank @jakarta.validation.constraints.Size(max = 140) String title,
-      @NotBlank @jakarta.validation.constraints.Size(max = 200) String service,
+      @jakarta.validation.constraints.Size(max = 140) String title,
+      @jakarta.validation.constraints.Size(max = 200) String service,
       @NotBlank @jakarta.validation.constraints.Size(max = 4000) String description,
       @jakarta.validation.constraints.Size(max = 120) String budget,
       @jakarta.validation.constraints.Size(max = 40) String deadline,
-      @jakarta.validation.constraints.NotNull List<ServiceHistoryInput> pastServices) {}
+      List<ServiceHistoryInput> pastServices) {}
 
   public record SendMessageRequest(
       @NotBlank @jakarta.validation.constraints.Size(max = 4000) String text,

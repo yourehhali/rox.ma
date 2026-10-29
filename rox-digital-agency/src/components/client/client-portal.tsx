@@ -18,7 +18,6 @@ import { NotificationBell } from "@/components/rox/notification-bell";
 import { useNotificationSocket } from "@/hooks/use-notification-socket";
 import { useClient } from "@/components/client/client-context";
 import { OnboardingWizard } from "@/components/client/onboarding-wizard";
-import { VerifyEmailCard } from "@/components/client/verify-email-card";
 import { OverviewPanel } from "@/components/client/overview";
 import { OrdersPanel } from "@/components/client/orders";
 import { OrderDetail } from "@/components/client/order-detail";
@@ -137,7 +136,6 @@ export function ClientPortal({ user, onLogout }: PortalProps) {
         </header>
 
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-          {user.verified === false && <VerificationBanner email={user.email} />}
           {needsOnboarding ? (
             <OnboardingIntro onNew={() => setWizardOpen(true)} />
           ) : (
@@ -179,7 +177,7 @@ export function ClientPortal({ user, onLogout }: PortalProps) {
           }}
           hasOrders={data.orders.length > 0}
           defaultName={user.name}
-          defaultEmail={user.email}
+          defaultPhone={user.phone ?? ""}
         />
       )}
     </div>
@@ -240,7 +238,7 @@ function PortalSidebar({
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{user.name}</p>
-            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+            <p className="truncate text-xs text-muted-foreground">{user.email || user.phone}</p>
           </div>
         </div>
       </div>
@@ -289,13 +287,13 @@ function WizardOverlay({
   onDone,
   hasOrders,
   defaultName,
-  defaultEmail,
+  defaultPhone,
 }: {
   onClose: () => void;
   onDone: () => void;
   hasOrders: boolean;
   defaultName: string;
-  defaultEmail: string;
+  defaultPhone: string;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm sm:p-8">
@@ -311,34 +309,12 @@ function WizardOverlay({
           </button>
         </div>
         <OnboardingWizard
-          mode="authed"
           defaultName={defaultName}
-          defaultEmail={defaultEmail}
+          defaultPhone={defaultPhone}
           onComplete={onDone}
           onCancel={hasOrders ? onClose : undefined}
         />
       </div>
-    </div>
-  );
-}
-
-function VerificationBanner({ email }: { email: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mb-4 rounded-lg border border-primary/40 bg-primary/10 p-4 text-foreground dark:border-primary/50 dark:bg-primary/15">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium">
-          Merci de vérifier votre adresse e-mail ({email}).
-        </p>
-        <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
-          {open ? "Masquer" : "Vérifier maintenant"}
-        </Button>
-      </div>
-      {open && (
-        <div className="mt-3 rounded-md bg-background/60 p-4">
-          <VerifyEmailCard initialEmail={email} compact onVerified={() => window.location.reload()} />
-        </div>
-      )}
     </div>
   );
 }

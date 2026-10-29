@@ -4,7 +4,7 @@ import { useSiteContent } from "@/hooks/use-site-content";
 // Routes where the public contact bubble must NOT appear (authenticated
 // surfaces). The bubble is a marketing-site affordance, so it stays hidden in
 // the admin dashboard, the client portal and the account/verification screens.
-const HIDDEN_PREFIXES = ["/admin", "/account", "/verify-email", "/portal", "/login"];
+const HIDDEN_PREFIXES = ["/admin", "/account", "/portal", "/login"];
 
 // WhatsApp glyph (Simple Icons path) — inherits color via `currentColor`.
 function WhatsAppGlyph() {

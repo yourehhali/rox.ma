@@ -1,157 +1,110 @@
-import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Eye, EyeOff, Lock, Mail, Phone, User } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link } from "@tanstack/react-router";
+import { ArrowLeft, Loader2, Phone, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/rox/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OtpInput } from "@/components/client/otp-input";
 
 type AuthResult = { ok: boolean; error?: string };
 
 const PHONE_RE = /^\+?[0-9]{8,15}$/;
-const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,200}$/;
+const RESEND_COOLDOWN_S = 60;
 
 type ClientLoginProps = {
-  onLogin: (email: string, password: string) => Promise<AuthResult>;
-  onSignup: (name: string, email: string, phone: string, password: string) => Promise<AuthResult>;
+  onRequestOtp: (phone: string) => Promise<AuthResult>;
+  onResendOtp: (phone: string) => Promise<AuthResult>;
+  onVerifyOtp: (phone: string, code: string) => Promise<AuthResult>;
 };
 
-export function ClientLogin({ onLogin, onSignup }: ClientLoginProps) {
-  const navigate = useNavigate();
-  const [mode, setMode] = useState<"login" | "signup">("signup");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+/**
+ * WhatsApp-only client login. Enter the number → receive a 6-digit code over
+ * WhatsApp → verify it. There is no password and no email: a matching code both
+ * authenticates returning clients and creates the account on the fly (the admin
+ * completes the profile later).
+ */
+export function ClientLogin({ onRequestOtp, onResendOtp, onVerifyOtp }: ClientLoginProps) {
+  const [step, setStep] = useState<"phone" | "code">("phone");
   const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setTimeout(() => setCooldown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(id);
+  }, [cooldown]);
+
+  const sendCode = async (): Promise<void> => {
     setError(null);
-    if (mode === "signup") {
-      const p = phone.trim();
-      if (!PHONE_RE.test(p)) {
-        setError("Téléphone invalide (8 à 15 chiffres, « + » optionnel).");
-        return;
-      }
-      if (!PASSWORD_RE.test(password)) {
-        setError("Mot de passe trop faible : min. 8 caractères avec majuscule, minuscule et chiffre.");
-        return;
-      }
-    }
-    const res =
-      mode === "login"
-        ? await onLogin(email, password)
-        : await onSignup(name, email, phone.trim(), password);
-    if (!res.ok) {
-      setError(res.error ?? "Une erreur est survenue.");
+    const p = phone.trim();
+    if (!PHONE_RE.test(p)) {
+      setError("Numéro invalide (8 à 15 chiffres, « + » optionnel).");
       return;
     }
-    if (mode === "signup") {
-      // Hand off the freshly-created email to /verify-email so the OTP field is pre-seeded.
-      if (typeof window !== "undefined") {
-        (window as unknown as { __rox_last_email__?: string }).__rox_last_email__ = email;
-      }
-      navigate({ to: "/verify-email" });
+    setBusy(true);
+    const res = await onRequestOtp(p);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error ?? "Envoi du code impossible.");
+      return;
     }
+    setCode("");
+    setCooldown(RESEND_COOLDOWN_S);
+    setStep("code");
+  };
+
+  const resend = async (): Promise<void> => {
+    if (cooldown > 0 || busy) return;
+    setError(null);
+    setBusy(true);
+    const res = await onResendOtp(phone.trim());
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error ?? "Renvoi impossible.");
+      return;
+    }
+    setCooldown(RESEND_COOLDOWN_S);
+  };
+
+  const verify = async (submitted: string): Promise<void> => {
+    setError(null);
+    if (submitted.length !== 6) return;
+    setBusy(true);
+    const res = await onVerifyOtp(phone.trim(), submitted);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error ?? "Vérification impossible.");
+      setCode("");
+    }
+  };
+
+  const onPhoneSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void sendCode();
   };
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
-
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
           <Logo className="h-20 w-20 rounded-xl object-contain" />
           <h1 className="mt-4 font-display text-2xl font-bold tracking-tight">Espace client</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "login"
-              ? "Connectez-vous pour suivre vos demandes."
-              : "Créez votre compte en quelques secondes."}
+            {step === "phone"
+              ? "Connectez-vous avec votre numéro WhatsApp."
+              : "Saisissez le code envoyé sur WhatsApp."}
           </p>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-          <div className="mb-5 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 text-sm font-medium">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("signup");
-                setError(null);
-              }}
-              className={`rounded-md py-1.5 transition-colors ${
-                mode === "signup" ? "bg-background shadow" : "text-muted-foreground"
-              }`}
-            >
-              Créer un compte
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("login");
-                setError(null);
-              }}
-              className={`rounded-md py-1.5 transition-colors ${
-                mode === "login" ? "bg-background shadow" : "text-muted-foreground"
-              }`}
-            >
-              Se connecter
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && (
+          {step === "phone" ? (
+            <form onSubmit={onPhoneSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="client-name">Nom complet</Label>
-                <div className="relative">
-                  <User
-                    size={15}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden
-                  />
-                  <Input
-                    id="client-name"
-                    autoComplete="name"
-                    required
-                    value={name}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="Votre nom"
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <Label htmlFor="client-email">E-mail</Label>
-              <div className="relative">
-                <Mail
-                  size={15}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden
-                />
-                <Input
-                  id="client-email"
-                  type="email"
-                  autoComplete="username"
-                  required
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setError(null);
-                  }}
-                  placeholder="vous@exemple.ma"
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            {mode === "signup" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="client-phone">Téléphone</Label>
+                <Label htmlFor="client-phone">Numéro WhatsApp</Label>
                 <div className="relative">
                   <Phone
                     size={15}
@@ -164,6 +117,7 @@ export function ClientLogin({ onLogin, onSignup }: ClientLoginProps) {
                     autoComplete="tel"
                     inputMode="tel"
                     required
+                    autoFocus
                     value={phone}
                     onChange={(e) => {
                       setPhone(e.target.value);
@@ -173,51 +127,71 @@ export function ClientLogin({ onLogin, onSignup }: ClientLoginProps) {
                     className="pl-9"
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Format international. Vous recevrez un code à 6 chiffres sur WhatsApp.
+                </p>
               </div>
-            )}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="client-password">Mot de passe</Label>
-              <div className="relative">
-                <Lock
-                  size={15}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden
-                />
-                <Input
-                  id="client-password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                  required
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setError(null);
-                  }}
-                  placeholder="••••••••"
-                  className="px-9"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-colors hover:text-foreground"
+              {error && (
+                <p role="alert" className="text-sm font-medium text-destructive">
+                  {error}
+                </p>
+              )}
+
+              <Button type="submit" className="w-full" disabled={busy}>
+                {busy ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" /> Envoi…
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={16} className="mr-1" /> Envoyer le code
+                  </>
+                )}
+              </Button>
+            </form>
+          ) : (
+            <div className="space-y-5">
+              <p className="text-center text-sm text-muted-foreground">
+                Code envoyé au{" "}
+                <span className="font-medium text-foreground">{phone}</span>
+              </p>
+
+              <OtpInput
+                value={code}
+                onChange={(v) => {
+                  setCode(v);
+                  setError(null);
+                }}
+                onComplete={(v) => void verify(v)}
+                disabled={busy}
+                autoFocus
+              />
+
+              {error && (
+                <p role="alert" className="text-center text-sm font-medium text-destructive">
+                  {error}
+                </p>
+              )}
+
+              <div className="flex items-center justify-between gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setStep("phone")} disabled={busy}>
+                  <ArrowLeft size={15} /> Modifier
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resend}
+                  disabled={cooldown > 0 || busy}
                 >
-                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
+                  {cooldown > 0 ? `Renvoyer dans ${cooldown}s` : "Renvoyer le code"}
+                </Button>
+                <Button size="sm" onClick={() => void verify(code)} disabled={busy || code.length !== 6}>
+                  Valider
+                </Button>
               </div>
             </div>
-
-            {error && (
-              <p role="alert" className="text-sm font-medium text-destructive">
-                {error}
-              </p>
-            )}
-
-            <Button type="submit" className="w-full">
-              {mode === "login" ? "Se connecter" : "Créer mon compte"}
-            </Button>
-          </form>
+          )}
         </div>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
