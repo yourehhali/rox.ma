@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { JsonLd } from "@/components/rox/json-ld";
+import { Reveal } from "@/components/rox/motion";
 import { faqLd } from "@/lib/seo";
 import { type FaqItemData } from "@/lib/faq-data";
 import { useSiteContent } from "@/hooks/use-site-content";
@@ -73,13 +74,15 @@ export function Faq({
       {withSchema ? <JsonLd data={faqLd(resolved)} /> : null}
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="grid gap-10 lg:grid-cols-[1fr_1.4fr]">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-widest text-primary">
-              {eyebrow}
-            </p>
-            <h2 className="mt-3 font-display text-3xl font-bold sm:text-4xl">{title}</h2>
-            <p className="mt-4 text-sm text-muted-foreground">{intro}</p>
-          </div>
+          <Reveal>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-widest text-primary">
+                {eyebrow}
+              </p>
+              <h2 className="mt-3 font-display text-3xl font-bold sm:text-4xl">{title}</h2>
+              <p className="mt-4 text-sm text-muted-foreground">{intro}</p>
+            </div>
+          </Reveal>
           <div className="rounded-xl border border-border bg-card px-6">
             {resolved.map((f, i) => (
               <FaqItem

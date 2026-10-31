@@ -46,6 +46,10 @@ const item: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
 };
 
+/** For custom motion elements inside <Stagger> that can't be a plain div
+ *  (grid children like <motion.li variants={ListItemVariants}>). */
+export const ListItemVariants = item;
+
 /** Wrap a grid/list to reveal children one-by-one. Pair with <RevealItem>. */
 export function Stagger({
   children,
@@ -54,7 +58,7 @@ export function Stagger({
 }: {
   children: ReactNode;
   className?: string;
-  as?: "div" | "ul" | "section";
+  as?: "div" | "ul" | "ol" | "section";
 }) {
   const reduce = useReducedMotion();
   const Comp = motion[as];

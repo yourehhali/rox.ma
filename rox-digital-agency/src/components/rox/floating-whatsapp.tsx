@@ -23,9 +23,7 @@ export function FloatingWhatsApp() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const digits = (info.whatsapp || "").replace(/\D/g, "");
-  const hidden = HIDDEN_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+  const hidden = HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   if (!info.whatsappEnabled || !digits || hidden) return null;
 

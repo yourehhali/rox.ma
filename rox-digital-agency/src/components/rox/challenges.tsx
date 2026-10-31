@@ -1,4 +1,5 @@
 import { SearchX, EyeOff, PhoneMissed, TrendingDown } from "lucide-react";
+import { Reveal, Stagger, StaggerItem } from "@/components/rox/motion";
 
 const challenges = [
   {
@@ -27,27 +28,28 @@ export function Challenges() {
   return (
     <section className="border-y border-border bg-card py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <p className="text-sm font-semibold uppercase tracking-widest text-primary">Constat</p>
-        <h2 className="mt-3 max-w-2xl font-display text-3xl font-bold sm:text-4xl">
-          Vos clients vous cherchent en ligne. Que trouvent-ils ?
-        </h2>
-        <p className="mt-4 max-w-2xl text-muted-foreground">
-          La majorité des achats commencent par une recherche sur Google. Si votre entreprise n'y
-          est pas visible, la vente se fait ailleurs.
-        </p>
+        <Reveal>
+          <p className="text-sm font-semibold uppercase tracking-widest text-primary">Constat</p>
+          <h2 className="mt-3 max-w-2xl font-display text-3xl font-bold sm:text-4xl">
+            Vos clients vous cherchent en ligne. Que trouvent-ils ?
+          </h2>
+          <p className="mt-4 max-w-2xl text-muted-foreground">
+            La majorité des achats commencent par une recherche sur Google. Si votre entreprise n'y
+            est pas visible, la vente se fait ailleurs.
+          </p>
+        </Reveal>
 
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <Stagger className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {challenges.map((c) => (
-            <article
-              key={c.title}
-              className="rounded-xl border border-border bg-background p-6 transition-colors hover:border-primary/40"
-            >
-              <c.icon size={22} className="text-primary" strokeWidth={1.8} />
-              <h3 className="mt-4 font-display text-base font-semibold">{c.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{c.text}</p>
-            </article>
+            <StaggerItem key={c.title} className="h-full">
+              <article className="flex h-full flex-col rounded-xl border border-border bg-background p-6 transition-[border-color,transform] duration-300 hover:-translate-y-1 hover:border-primary/40">
+                <c.icon size={22} className="text-primary" strokeWidth={1.8} />
+                <h3 className="mt-4 font-display text-base font-semibold">{c.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{c.text}</p>
+              </article>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       </div>
     </section>
   );

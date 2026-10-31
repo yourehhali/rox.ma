@@ -1,3 +1,6 @@
+import { motion } from "framer-motion";
+import { ListItemVariants, Stagger } from "@/components/rox/motion";
+
 const steps = [
   {
     num: "01",
@@ -25,15 +28,18 @@ export function Process() {
   return (
     <section className="border-y border-border bg-card pt-12 pb-16 sm:pb-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <ol className="grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+        <Stagger
+          as="ol"
+          className="grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4"
+        >
           {steps.map((s) => (
-            <li key={s.num} className="bg-background p-7">
+            <motion.li key={s.num} variants={ListItemVariants} className="bg-background p-7">
               <span className="font-display text-3xl font-bold text-primary">{s.num}</span>
               <h2 className="mt-4 font-display text-base font-semibold">{s.title}</h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{s.text}</p>
-            </li>
+            </motion.li>
           ))}
-        </ol>
+        </Stagger>
       </div>
     </section>
   );

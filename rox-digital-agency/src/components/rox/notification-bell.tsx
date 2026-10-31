@@ -37,7 +37,12 @@ type NotificationBellProps = {
   className?: string;
 };
 
-export function NotificationBell({ role, enabled = true, onOpenOrder, className }: NotificationBellProps) {
+export function NotificationBell({
+  role,
+  enabled = true,
+  onOpenOrder,
+  className,
+}: NotificationBellProps) {
   const { data: items = [] } = useNotificationList(role, enabled);
   const { data: unread = 0 } = useUnreadCount(role, enabled);
   const { markRead, markAllRead, remove } = useNotificationMutations(role);
@@ -104,7 +109,9 @@ export function NotificationBell({ role, enabled = true, onOpenOrder, className 
                     className="min-w-0 flex-1 text-left"
                   >
                     <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-                      {!n.readAt && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
+                      {!n.readAt && (
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                      )}
                       {n.title}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">{n.body}</p>
