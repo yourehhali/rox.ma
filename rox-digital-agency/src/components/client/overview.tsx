@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useClient } from "@/components/client/client-context";
-import { PHASES, orderProgress } from "@/lib/client-store";
+import { currentStepLabel, orderProgress } from "@/lib/client-store";
 
 type OverviewProps = {
   onOpen: (id: string) => void;
@@ -66,7 +66,7 @@ export function OverviewPanel({ onOpen, onNew, onGoMessages }: OverviewProps) {
                   <div className="min-w-0">
                     <p className="truncate font-medium">{o.title}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {o.service} · {PHASES.find((p) => p.id === o.phase)?.label}
+                      {o.service} · {currentStepLabel(o)}
                     </p>
                   </div>
                   <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">

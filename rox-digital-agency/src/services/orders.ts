@@ -11,7 +11,6 @@ import type {
   GuestOrderInput,
   NewOrderInput,
   Order,
-  OrderPhase,
   OrderStatus,
 } from "@/lib/api/types";
 
@@ -51,15 +50,6 @@ export async function createGuestOrder(input: GuestOrderInput): Promise<Order> {
     "/orders/guest",
     { method: "POST", body: input },
     { anonymous: true },
-  );
-  return mapOrder(raw);
-}
-
-export async function patchPhase(orderId: string, phase: OrderPhase): Promise<Order> {
-  const raw = await apiFetch<RawOrder>(
-    `/orders/${orderId}/phase`,
-    { method: "PATCH", body: { phase } },
-    { role: "admin" },
   );
   return mapOrder(raw);
 }

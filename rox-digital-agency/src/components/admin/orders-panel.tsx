@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowLeft, Check, CircleDot, Inbox, Plus, X } from "lucide-react";
-import { formatDate, orderStatusMeta, phaseLabel, formatTime } from "@/components/admin/data";
+import { formatDate, orderStatusMeta, formatTime } from "@/components/admin/data";
 import type { AdminPortal } from "@/hooks/use-admin-portal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { PHASES, phaseIndex, orderProgress } from "@/lib/client-store";
+import { orderProgress } from "@/lib/client-store";
 import { cn } from "@/lib/utils";
 
 export function OrdersPanel({ portal }: { portal: AdminPortal }) {
@@ -76,7 +76,7 @@ export function OrdersPanel({ portal }: { portal: AdminPortal }) {
                       <div className="flex items-center gap-2">
                         <Progress value={orderProgress(order)} className="h-1.5 w-20" />
                         <span className="whitespace-nowrap text-xs text-muted-foreground">
-                          {phaseLabel(order.phase)}
+                          {order.tasks.filter((t) => t.done).length}/{order.tasks.length} étapes
                         </span>
                       </div>
                     </TableCell>
@@ -117,14 +117,13 @@ function ManageOrder({
   orderId: string;
   onBack: () => void;
 }) {
+  const [newStep, setNewStep] = useState("");
   const found = portal.allOrders.find(({ order }) => order.id === orderId);
   if (!found) return null;
   const { client, order } = found;
   const actions = portal.actions;
   const cid = clientId ?? ""; // server derives the client from the order; keep actions' signature
-  const currentIdx = phaseIndex(order.phase);
   const status = orderStatusMeta[order.status];
-  const [newStep, setNewStep] = useState("");
 
   return (
     <div className="space-y-6">
@@ -158,41 +157,12 @@ function ManageOrder({
           <CardContent className="space-y-6">
             <p className="text-sm text-muted-foreground">{order.description}</p>
 
-            {/* Phase stepper — click to move the order to a stage */}
-            <div>
-              <p className="mb-2 text-sm font-medium">Étape de production</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {PHASES.map((p, i) => {
-                  const done = i < currentIdx;
-                  const current = i === currentIdx;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => actions.advance(cid, orderId, p.id)}
-                      className={cn(
-                        "rounded-lg border p-2.5 text-left text-xs transition-colors",
-                        current
-                          ? "border-primary bg-primary/10 font-medium text-primary"
-                          : done
-                            ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
-                            : "border-border text-muted-foreground hover:border-primary",
-                      )}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        {done ? <Check size={13} /> : <CircleDot size={13} />}
-                        {p.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="mt-3 flex items-center gap-2">
-                <Progress value={orderProgress(order)} className="h-2" />
-                <span className="whitespace-nowrap text-xs font-medium tabular-nums text-muted-foreground">
-                  {orderProgress(order)}%
-                </span>
-              </div>
+            {/* Progress bar — driven by the admin-defined steps below */}
+            <div className="flex items-center gap-2">
+              <Progress value={orderProgress(order)} className="h-2" />
+              <span className="whitespace-nowrap text-xs font-medium tabular-nums text-muted-foreground">
+                {orderProgress(order)}%
+              </span>
             </div>
 
             {/* Steps checklist — the admin composes the client journey; a new

@@ -30,12 +30,17 @@ export type {
   Task,
 };
 
-export const PHASES: { id: OrderPhase; label: string }[] = [
-  { id: "cadrage", label: "Cadrage" },
-  { id: "maquette", label: "Maquette Figma" },
-  { id: "developpement", label: "Développement" },
-  { id: "lancement", label: "Lancement & suivi" },
-];
+/**
+ * Where the order stands right now, derived from the admin-defined steps.
+ * The old preset phase grid (cadrage → maquette → développement → lancement)
+ * is retired from the UI: steps are composed by the admin, per order.
+ */
+export function currentStepLabel(order: Pick<Order, "tasks" | "status">): string {
+  if (order.status === "Terminé") return "Terminé";
+  if (order.tasks.length === 0) return "À définir";
+  const next = order.tasks.find((t) => !t.done);
+  return next ? next.label : "En cours";
+}
 
 /**
  * Fallback service names used by the onboarding wizard until `useSiteContent()`
@@ -54,10 +59,6 @@ export const SERVICES = [
   "Conseil & audit digital",
   "Automatisation & intégrations",
 ] as const;
-
-export function phaseIndex(phase: OrderPhase): number {
-  return PHASES.findIndex((p) => p.id === phase);
-}
 
 /**
  * Client-facing progress follows the admin-defined steps (tasks), not the

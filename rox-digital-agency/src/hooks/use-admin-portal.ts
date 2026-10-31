@@ -14,7 +14,6 @@ import type {
   ClientRef,
   ClientUser,
   Order,
-  OrderPhase,
   OrderStatus,
   PortalData,
   TrafficPoint,
@@ -103,11 +102,6 @@ export function useAdminPortal(range: TrafficRange = "12M") {
     queryClient.invalidateQueries({ queryKey: keys.admin.all });
   };
 
-  const phaseMut = useMutation({
-    mutationFn: ({ orderId, phase }: { orderId: string; phase: OrderPhase }) =>
-      ordersSvc.patchPhase(orderId, phase),
-    onSuccess: invalidateAll,
-  });
   const statusMut = useMutation({
     mutationFn: ({ orderId, status }: { orderId: string; status: OrderStatus }) =>
       ordersSvc.patchStatus(orderId, status),
@@ -134,13 +128,9 @@ export function useAdminPortal(range: TrafficRange = "12M") {
     onSuccess: invalidateAll,
   });
   const replyMut = useMutation({
-    // `/messages` is a client path prefix, so inference would attach the client
-    // bearer (which admins don't have) and the API would 401 every reply. The
-    // admin reply must force its role or nothing is ever sent or refreshed.
     mutationFn: ({ clientId, text }: { clientId: string; text: string }) =>
       messagesSvc.sendMessage({ text, clientId }, "admin"),
     onSuccess: invalidateAll,
-    // The chat panel shows failures inline under the composer.
     meta: { silentError: true },
   });
   const confirmMut = useMutation({
@@ -152,8 +142,6 @@ export function useAdminPortal(range: TrafficRange = "12M") {
     () => ({
       // `clientId` is kept in the signature so existing component callers stay
       // unchanged; the server derives it from the order/booking anyway.
-      advance: (_clientId: string, orderId: string, phase: OrderPhase) =>
-        phaseMut.mutateAsync({ orderId, phase }),
       toggleTask: (_clientId: string, orderId: string, taskId: string) =>
         taskMut.mutateAsync({ orderId, taskId }),
       addTask: (_clientId: string, orderId: string, label: string) =>
@@ -167,7 +155,7 @@ export function useAdminPortal(range: TrafficRange = "12M") {
       reply: (clientId: string, text: string) => replyMut.mutateAsync({ clientId, text }),
       confirmBooking: (_clientId: string, bookingId: string) => confirmMut.mutateAsync(bookingId),
     }),
-    [phaseMut, taskMut, addTaskMut, deleteTaskMut, statusMut, requestMut, replyMut, confirmMut],
+    [taskMut, addTaskMut, deleteTaskMut, statusMut, requestMut, replyMut, confirmMut],
   );
 
   const stats: AdminStats = statsQuery.data ?? {

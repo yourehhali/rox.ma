@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ArrowRight, Inbox } from "lucide-react";
-import { chartConfig, formatDate, orderStatusMeta, phaseLabel } from "@/components/admin/data";
+import { chartConfig, formatDate, orderStatusMeta } from "@/components/admin/data";
+import { currentStepLabel } from "@/lib/client-store";
 import type { AdminSection } from "@/components/admin/data";
 import type { AdminPortal } from "@/hooks/use-admin-portal";
 import { Badge } from "@/components/ui/badge";
@@ -195,7 +196,7 @@ export function OverviewPanel({
                         <TableCell className="pl-6 font-medium">{client.name || "Nouveau prospect"}</TableCell>
                         <TableCell className="text-muted-foreground">{order.title}</TableCell>
                         <TableCell className="text-muted-foreground">
-                          {phaseLabel(order.phase)}
+                          {currentStepLabel(order)}
                         </TableCell>
                         <TableCell>
                           <span

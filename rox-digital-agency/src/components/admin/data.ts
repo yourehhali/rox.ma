@@ -15,7 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { type ChartConfig } from "@/components/ui/chart";
-import { PHASES, type Order, type OrderPhase } from "@/lib/client-store";
+import { type Order } from "@/lib/client-store";
 
 export type AdminSection =
   | "overview"
@@ -46,10 +46,6 @@ export const chartConfig = {
 } satisfies ChartConfig;
 
 // --- Shared display helpers for the real client/order data -----------------
-
-export function phaseLabel(phase: OrderPhase): string {
-  return PHASES.find((p) => p.id === phase)?.label ?? phase;
-}
 
 export function formatDate(iso: string): string {
   try {

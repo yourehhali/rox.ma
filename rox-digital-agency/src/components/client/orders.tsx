@@ -2,7 +2,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useClient } from "@/components/client/client-context";
-import { PHASES, orderProgress } from "@/lib/client-store";
+import { currentStepLabel, orderProgress } from "@/lib/client-store";
 
 type OrdersProps = {
   onOpen: (id: string) => void;
@@ -40,7 +40,7 @@ export function OrdersPanel({ onOpen, onNew }: OrdersProps) {
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">{o.service}</p>
                 </div>
                 <Badge variant="secondary" className="shrink-0 font-normal">
-                  {PHASES.find((p) => p.id === o.phase)?.label}
+                  {currentStepLabel(o)}
                 </Badge>
               </div>
               <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{o.description}</p>
