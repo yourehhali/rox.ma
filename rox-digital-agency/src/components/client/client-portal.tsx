@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowUpRight,
   LayoutDashboard,
@@ -59,6 +60,7 @@ export function ClientPortal({ user, onLogout }: PortalProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const reduce = useReducedMotion();
 
   // Realtime notifications + cache freshness for the whole client shell.
   useNotificationSocket("client");
@@ -88,32 +90,47 @@ export function ClientPortal({ user, onLogout }: PortalProps) {
         className="sticky top-0 hidden h-screen md:flex"
       />
 
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setMobileOpen(false)}
-            aria-hidden
-          />
-          <div className="absolute inset-y-0 left-0">
-            <PortalSidebar
-              user={user}
-              section={section}
-              onSelect={go}
-              onLogout={onLogout}
-              className="h-full"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => setMobileOpen(false)}
-            aria-label="Fermer le menu"
-            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground"
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            key="client-drawer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 md:hidden"
           >
-            <X size={18} />
-          </button>
-        </div>
-      )}
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setMobileOpen(false)}
+              aria-hidden
+            />
+            <motion.div
+              initial={reduce ? { opacity: 0 } : { x: "-100%" }}
+              animate={reduce ? { opacity: 1 } : { x: 0 }}
+              exit={reduce ? { opacity: 0 } : { x: "-100%" }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              className="absolute inset-y-0 left-0"
+            >
+              <PortalSidebar
+                user={user}
+                section={section}
+                onSelect={go}
+                onLogout={onLogout}
+                className="h-full"
+              />
+            </motion.div>
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Fermer le menu"
+              className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground"
+            >
+              <X size={18} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur sm:px-6">
@@ -140,46 +157,62 @@ export function ClientPortal({ user, onLogout }: PortalProps) {
             <OnboardingIntro onNew={() => setWizardOpen(true)} />
           ) : (
             <>
-              <div className="mb-6">
-                <h1 className="font-display text-2xl font-bold tracking-tight">
-                  {TITLES[section].title}
-                </h1>
-                <p className="mt-1 text-sm text-muted-foreground">{TITLES[section].description}</p>
-              </div>
+              {/* View swap: opening an order detail counts as a view change, so
+                  list ↔ detail cross-fade like sections do */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={`${section}-${section === "orders" && selectedId ? "detail" : "list"}`}
+                  initial={reduce ? false : { opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <div className="mb-6">
+                    <h1 className="font-display text-2xl font-bold tracking-tight">
+                      {TITLES[section].title}
+                    </h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {TITLES[section].description}
+                    </p>
+                  </div>
 
-              {section === "overview" && (
-                <OverviewPanel
-                  onOpen={openOrder}
-                  onNew={() => setWizardOpen(true)}
-                  onGoMessages={() => go("messages")}
-                />
-              )}
-              {section === "orders" &&
-                (selectedOrder ? (
-                  <OrderDetail order={selectedOrder} onBack={() => setSelectedId(null)} />
-                ) : (
-                  <OrdersPanel onOpen={openOrder} onNew={() => setWizardOpen(true)} />
-                ))}
-              {section === "messages" && <MessagesPanel clientId={user.id} />}
-              {section === "profile" && <ProfilePanel user={user} />}
+                  {section === "overview" && (
+                    <OverviewPanel
+                      onOpen={openOrder}
+                      onNew={() => setWizardOpen(true)}
+                      onGoMessages={() => go("messages")}
+                    />
+                  )}
+                  {section === "orders" &&
+                    (selectedOrder ? (
+                      <OrderDetail order={selectedOrder} onBack={() => setSelectedId(null)} />
+                    ) : (
+                      <OrdersPanel onOpen={openOrder} onNew={() => setWizardOpen(true)} />
+                    ))}
+                  {section === "messages" && <MessagesPanel clientId={user.id} />}
+                  {section === "profile" && <ProfilePanel user={user} />}
+                </motion.div>
+              </AnimatePresence>
             </>
           )}
         </main>
       </div>
 
-      {wizardOpen && (
-        <WizardOverlay
-          onClose={() => setWizardOpen(false)}
-          onDone={() => {
-            setWizardOpen(false);
-            setSection("overview");
-            setSelectedId(null);
-          }}
-          hasOrders={data.orders.length > 0}
-          defaultName={user.name}
-          defaultPhone={user.phone ?? ""}
-        />
-      )}
+      <AnimatePresence>
+        {wizardOpen && (
+          <WizardOverlay
+            onClose={() => setWizardOpen(false)}
+            onDone={() => {
+              setWizardOpen(false);
+              setSection("overview");
+              setSelectedId(null);
+            }}
+            hasOrders={data.orders.length > 0}
+            defaultName={user.name}
+            defaultPhone={user.phone ?? ""}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -266,7 +299,12 @@ function PortalSidebar({
 
 function OnboardingIntro({ onNew }: { onNew: () => void }) {
   return (
-    <div className="flex flex-col items-center py-10 text-center">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col items-center py-10 text-center"
+    >
       <Logo className="h-24 w-24 rounded-xl object-contain" />
       <h2 className="mt-5 font-display text-2xl font-bold tracking-tight">
         Bienvenue sur votre espace
@@ -278,7 +316,7 @@ function OnboardingIntro({ onNew }: { onNew: () => void }) {
       <Button className="mt-6" onClick={onNew}>
         <Plus size={16} /> Décrire ma première demande
       </Button>
-    </div>
+    </motion.div>
   );
 }
 
@@ -295,9 +333,23 @@ function WizardOverlay({
   defaultName: string;
   defaultPhone: string;
 }) {
+  const reduce = useReducedMotion();
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm sm:p-8">
-      <div className="my-auto w-full max-w-2xl">
+    <motion.div
+      key="wizard-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm sm:p-8"
+    >
+      <motion.div
+        initial={reduce ? { opacity: 0 } : { opacity: 0, y: 28, scale: 0.98 }}
+        animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+        exit={reduce ? { opacity: 0 } : { opacity: 0, y: 20, scale: 0.98 }}
+        transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        className="my-auto w-full max-w-2xl"
+      >
         <div className="mb-2 flex justify-end">
           <button
             type="button"
@@ -314,7 +366,7 @@ function WizardOverlay({
           onComplete={onDone}
           onCancel={hasOrders ? onClose : undefined}
         />
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

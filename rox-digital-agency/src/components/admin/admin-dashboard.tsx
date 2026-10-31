@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Menu, Search, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AdminBrand, AdminSidebar } from "@/components/admin/admin-sidebar";
 import { type AdminSection } from "@/components/admin/data";
 import { OverviewPanel } from "@/components/admin/overview-panel";
@@ -55,6 +56,7 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [active, setActive] = useState<AdminSection>("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [focusClientId, setFocusClientId] = useState<string | null>(null);
+  const reduce = useReducedMotion();
 
   // Realtime notification delivery for the bell + cache freshness across panels.
   useNotificationSocket("admin");
@@ -85,65 +87,91 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         className="sticky top-0 hidden h-screen md:flex"
       />
 
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setMobileOpen(false)}
-            aria-hidden
-          />
-          <div className="absolute inset-y-0 left-0">
-            <AdminSidebar
-              active={active}
-              onSelect={handleSelect}
-              onLogout={onLogout}
-              className="h-full"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => setMobileOpen(false)}
-            aria-label="Fermer le menu"
-            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground"
+      {/* Mobile drawer — slides in over a fading backdrop, reverses on close */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            key="admin-drawer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 md:hidden"
           >
-            <X size={18} />
-          </button>
-        </div>
-      )}
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setMobileOpen(false)}
+              aria-hidden
+            />
+            <motion.div
+              initial={reduce ? { opacity: 0 } : { x: "-100%" }}
+              animate={reduce ? { opacity: 1 } : { x: 0 }}
+              exit={reduce ? { opacity: 0 } : { x: "-100%" }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              className="absolute inset-y-0 left-0"
+            >
+              <AdminSidebar
+                active={active}
+                onSelect={handleSelect}
+                onLogout={onLogout}
+                className="h-full"
+              />
+            </motion.div>
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Fermer le menu"
+              className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground"
+            >
+              <X size={18} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onOpenMenu={() => setMobileOpen(true)} onOpenOrder={() => setActive("orders")} />
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-          <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h1 className="font-display text-2xl font-bold tracking-tight">
-                {sectionMeta[active].title}
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {sectionMeta[active].description}
-              </p>
-            </div>
-          </div>
+          {/* Section swap: header + panel cross-fade together, keyed on the section */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={active}
+              initial={reduce ? false : { opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="font-display text-2xl font-bold tracking-tight">
+                    {sectionMeta[active].title}
+                  </h1>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {sectionMeta[active].description}
+                  </p>
+                </div>
+              </div>
 
-          {active === "overview" && <OverviewPanel portal={portal} onSelect={setActive} />}
-          {active === "orders" && <OrdersPanel portal={portal} />}
-          {active === "board" && <BoardPanel />}
-          {active === "clients" && (
-            <ClientsPanel portal={portal} onOpenMessages={openMessagesFor} />
-          )}
-          {active === "messages" && (
-            <MessagesPanel
-              portal={portal}
-              clientId={focusClientId}
-              onClientChange={setFocusClientId}
-            />
-          )}
-          {active === "portfolio" && <PortfolioPanel />}
-          {active === "content" && <ContentPanel />}
-          {active === "whatsapp" && <WhatsAppPanel />}
-          {active === "settings" && <SettingsPanel />}
+              {active === "overview" && <OverviewPanel portal={portal} onSelect={setActive} />}
+              {active === "orders" && <OrdersPanel portal={portal} />}
+              {active === "board" && <BoardPanel />}
+              {active === "clients" && (
+                <ClientsPanel portal={portal} onOpenMessages={openMessagesFor} />
+              )}
+              {active === "messages" && (
+                <MessagesPanel
+                  portal={portal}
+                  clientId={focusClientId}
+                  onClientChange={setFocusClientId}
+                />
+              )}
+              {active === "portfolio" && <PortfolioPanel />}
+              {active === "content" && <ContentPanel />}
+              {active === "whatsapp" && <WhatsAppPanel />}
+              {active === "settings" && <SettingsPanel />}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </div>
