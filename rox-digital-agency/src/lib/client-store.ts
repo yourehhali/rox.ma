@@ -59,10 +59,16 @@ export function phaseIndex(phase: OrderPhase): number {
   return PHASES.findIndex((p) => p.id === phase);
 }
 
-export function phaseProgress(phase: OrderPhase): number {
-  const idx = phaseIndex(phase);
-  if (idx < 0) return 0;
-  return Math.round(((idx + 1) / PHASES.length) * 100);
+/**
+ * Client-facing progress follows the admin-defined steps (tasks), not the
+ * internal production phase: a new order starts at 0% with only the discovery
+ * call as its first step, and reaches 100% when it is marked "Terminé".
+ */
+export function orderProgress(order: Pick<Order, "tasks" | "status">): number {
+  if (order.status === "Terminé") return 100;
+  const total = order.tasks.length;
+  if (total === 0) return 0;
+  return Math.round((order.tasks.filter((t) => t.done).length / total) * 100);
 }
 
 /**

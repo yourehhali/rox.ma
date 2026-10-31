@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { ArrowLeft, Check, Circle, RefreshCw, MessageSquarePlus } from "lucide-react";
+import { ArrowLeft, Check, RefreshCw, MessageSquarePlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useClient } from "@/components/client/client-context";
-import { PHASES, phaseIndex, phaseProgress, type Order } from "@/lib/client-store";
+import { orderProgress, type Order } from "@/lib/client-store";
 import { cn } from "@/lib/utils";
 
 function formatDate(iso: string): string {
@@ -23,8 +23,7 @@ export function OrderDetail({ order, onBack }: { order: Order; onBack: () => voi
   const [note, setNote] = useState("");
   const [sent, setSent] = useState(false);
 
-  const currentIdx = phaseIndex(order.phase);
-  const progress = phaseProgress(order.phase);
+  const progress = orderProgress(order);
   const doneTasks = order.tasks.filter((t) => t.done).length;
 
   const submitRequest = () => {
@@ -65,33 +64,15 @@ export function OrderDetail({ order, onBack }: { order: Order; onBack: () => voi
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Notre progression</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-5">
+        <CardContent className="space-y-4">
           <Progress value={progress} />
-          <div className="grid gap-2 sm:grid-cols-4">
-            {PHASES.map((p, i) => {
-              const state = i < currentIdx ? "done" : i === currentIdx ? "current" : "todo";
-              return (
-                <div
-                  key={p.id}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg border p-2.5 text-xs font-medium",
-                    state === "current" && "border-primary bg-primary/5 text-primary",
-                    state === "done" && "border-border text-foreground",
-                    state === "todo" && "border-dashed border-border text-muted-foreground",
-                  )}
-                >
-                  {state === "done" ? (
-                    <Check size={14} className="text-emerald-500" />
-                  ) : (
-                    <Circle size={12} className={cn(state === "current" && "fill-current")} />
-                  )}
-                  {p.label}
-                </div>
-              );
-            })}
-          </div>
           <p className="text-xs text-muted-foreground">
-            {doneTasks}/{order.tasks.length} jalons terminés
+            {doneTasks}/{order.tasks.length} étapes terminées
+          </p>
+          <p className="rounded-lg border border-dashed border-border bg-card p-3 text-xs leading-relaxed text-muted-foreground">
+            Les étapes de votre projet sont définies par notre équipe après validation de votre
+            demande. Tout démarre avec un appel de cadrage, puis l'équipe ajoute vos jalons au fil
+            de l'avancement.
           </p>
         </CardContent>
       </Card>

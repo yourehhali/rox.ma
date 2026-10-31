@@ -2,7 +2,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useClient } from "@/components/client/client-context";
-import { PHASES, phaseProgress } from "@/lib/client-store";
+import { PHASES, orderProgress } from "@/lib/client-store";
 
 type OrdersProps = {
   onOpen: (id: string) => void;
@@ -48,11 +48,11 @@ export function OrdersPanel({ onOpen, onNew }: OrdersProps) {
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-primary"
-                    style={{ width: `${phaseProgress(o.phase)}%` }}
+                    style={{ width: `${orderProgress(o)}%` }}
                   />
                 </div>
                 <span className="text-xs font-medium tabular-nums text-muted-foreground">
-                  {phaseProgress(o.phase)}%
+                  {orderProgress(o)}%
                 </span>
               </div>
             </button>

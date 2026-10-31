@@ -23,11 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class PortalService {
 
   public static final List<String> PHASES = List.of("cadrage", "maquette", "developpement", "lancement");
-  private static final List<String> TASK_LABELS = List.of(
-      "Cadrage : brief + audit valid\u00e9s",
-      "Maquette : wireframes + UI valid\u00e9s",
-      "D\u00e9veloppement : int\u00e9gration + contenu",
-      "Lancement : mise en ligne + suivi");
+  /** A new order starts with a single step — the discovery call. The admin composes the rest. */
+  private static final String INITIAL_STEP_LABEL = "Appel de cadrage";
 
   private final OrderRepo orders;
   private final MessageRepo messages;
@@ -123,16 +120,14 @@ public class PortalService {
     OffsetDateTime now = nowUtc();
     o.setCreatedAt(now);
 
-    for (int i = 0; i < TASK_LABELS.size(); i++) {
-      OrderTask t = new OrderTask();
-      t.setId(prefixed("t"));
-      t.setOrder(o);
-      t.setLabel(TASK_LABELS.get(i));
-      t.setDone(false);
-      t.setUpdatedAt(now);
-      t.setPosition(i);
-      o.getTasks().add(t);
-    }
+    OrderTask firstStep = new OrderTask();
+    firstStep.setId(prefixed("t"));
+    firstStep.setOrder(o);
+    firstStep.setLabel(INITIAL_STEP_LABEL);
+    firstStep.setDone(false);
+    firstStep.setUpdatedAt(now);
+    firstStep.setPosition(0);
+    o.getTasks().add(firstStep);
     if (input.pastServices() != null) {
       for (var hs : input.pastServices()) {
         ServiceHistory sh = new ServiceHistory();
@@ -176,16 +171,14 @@ public class PortalService {
     OffsetDateTime now = nowUtc();
     o.setCreatedAt(now);
 
-    for (int i = 0; i < TASK_LABELS.size(); i++) {
-      OrderTask t = new OrderTask();
-      t.setId(prefixed("t"));
-      t.setOrder(o);
-      t.setLabel(TASK_LABELS.get(i));
-      t.setDone(false);
-      t.setUpdatedAt(now);
-      t.setPosition(i);
-      o.getTasks().add(t);
-    }
+    OrderTask firstStep = new OrderTask();
+    firstStep.setId(prefixed("t"));
+    firstStep.setOrder(o);
+    firstStep.setLabel(INITIAL_STEP_LABEL);
+    firstStep.setDone(false);
+    firstStep.setUpdatedAt(now);
+    firstStep.setPosition(0);
+    o.getTasks().add(firstStep);
     if (input.pastServices() != null) {
       for (var hs : input.pastServices()) {
         ServiceHistory sh = new ServiceHistory();
@@ -265,6 +258,38 @@ public class PortalService {
     target.setDone(!target.isDone());
     target.setUpdatedAt(nowUtc());
     addEvent(o, (target.isDone() ? "Tâche accomplie : " : "Tâche réouverte : ") + target.getLabel(), nowUtc());
+    return orders.save(o);
+  }
+
+  /** Admin-defined step: orders start with the call only; the rest of the journey is composed here. */
+  @Transactional
+  public Order addTask(String orderId, String label) {
+    if (label == null || label.isBlank()) {
+      throw ApiException.badRequest("Champ 'label' requis.", List.of(new ma.rox.api.error.ApiError.FieldIssue("label", "required")));
+    }
+    Order o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Commande"));
+    OrderTask t = new OrderTask();
+    t.setId(prefixed("t"));
+    t.setOrder(o);
+    t.setLabel(label.trim());
+    t.setDone(false);
+    t.setUpdatedAt(nowUtc());
+    t.setPosition(o.getTasks().size());
+    o.getTasks().add(t);
+    addEvent(o, "Étape ajoutée : " + t.getLabel(), nowUtc());
+    return orders.save(o);
+  }
+
+  @Transactional
+  public Order removeTask(String orderId, String taskId) {
+    Order o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Commande"));
+    OrderTask target = o.getTasks().stream().filter(t -> t.getId().equals(taskId)).findFirst()
+        .orElseThrow(() -> ApiException.notFound("Tâche"));
+    o.getTasks().remove(target); // orphanRemoval deletes the row
+    for (int i = 0; i < o.getTasks().size(); i++) {
+      o.getTasks().get(i).setPosition(i);
+    }
+    addEvent(o, "Étape supprimée : " + target.getLabel(), nowUtc());
     return orders.save(o);
   }
 

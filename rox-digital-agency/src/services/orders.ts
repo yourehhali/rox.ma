@@ -82,6 +82,25 @@ export async function toggleTask(orderId: string, taskId: string): Promise<Order
   return mapOrder(raw);
 }
 
+/** Admin-defined step: orders start with the call only; the rest is composed here. */
+export async function addTask(orderId: string, label: string): Promise<Order> {
+  const raw = await apiFetch<RawOrder>(
+    `/orders/${orderId}/tasks`,
+    { method: "POST", body: { label } },
+    { role: "admin" },
+  );
+  return mapOrder(raw);
+}
+
+export async function deleteTask(orderId: string, taskId: string): Promise<Order> {
+  const raw = await apiFetch<RawOrder>(
+    `/orders/${orderId}/tasks/${taskId}`,
+    { method: "DELETE" },
+    { role: "admin" },
+  );
+  return mapOrder(raw);
+}
+
 export async function addRequest(
   orderId: string,
   input: { type: "update" | "edit"; note: string },

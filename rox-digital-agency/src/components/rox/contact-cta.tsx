@@ -215,6 +215,10 @@ function VerifyCodeCard({ phone, onBack }: { phone: string; onBack: () => void }
           Saisissez le code envoyé au <span className="font-medium text-foreground">{phone}</span>{" "}
           pour accéder à votre espace client.
         </p>
+        <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
+          Première étape : un appel de cadrage avec notre équipe. Les étapes suivantes de votre
+          projet seront définies ensemble après cet échange.
+        </p>
       </div>
 
       <OtpInput

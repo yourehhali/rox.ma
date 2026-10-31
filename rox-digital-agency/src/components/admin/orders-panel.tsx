@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { ArrowLeft, Check, CircleDot, Inbox } from "lucide-react";
+import { ArrowLeft, Check, CircleDot, Inbox, Plus, X } from "lucide-react";
 import { formatDate, orderStatusMeta, phaseLabel, formatTime } from "@/components/admin/data";
 import type { AdminPortal } from "@/hooks/use-admin-portal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -14,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { PHASES, phaseIndex, phaseProgress } from "@/lib/client-store";
+import { PHASES, phaseIndex, orderProgress } from "@/lib/client-store";
 import { cn } from "@/lib/utils";
 
 export function OrdersPanel({ portal }: { portal: AdminPortal }) {
@@ -73,7 +74,7 @@ export function OrdersPanel({ portal }: { portal: AdminPortal }) {
                     <TableCell className="text-muted-foreground">{order.service}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Progress value={phaseProgress(order.phase)} className="h-1.5 w-20" />
+                        <Progress value={orderProgress(order)} className="h-1.5 w-20" />
                         <span className="whitespace-nowrap text-xs text-muted-foreground">
                           {phaseLabel(order.phase)}
                         </span>
@@ -123,6 +124,7 @@ function ManageOrder({
   const cid = clientId ?? ""; // server derives the client from the order; keep actions' signature
   const currentIdx = phaseIndex(order.phase);
   const status = orderStatusMeta[order.status];
+  const [newStep, setNewStep] = useState("");
 
   return (
     <div className="space-y-6">
@@ -186,23 +188,28 @@ function ManageOrder({
                 })}
               </div>
               <div className="mt-3 flex items-center gap-2">
-                <Progress value={phaseProgress(order.phase)} className="h-2" />
+                <Progress value={orderProgress(order)} className="h-2" />
                 <span className="whitespace-nowrap text-xs font-medium tabular-nums text-muted-foreground">
-                  {phaseProgress(order.phase)}%
+                  {orderProgress(order)}%
                 </span>
               </div>
             </div>
 
-            {/* Task checklist — toggle to update client-facing progress */}
+            {/* Steps checklist — the admin composes the client journey; a new
+                order starts with the discovery call only. */}
             <div>
-              <p className="mb-2 text-sm font-medium">Jalons</p>
+              <p className="mb-1 text-sm font-medium">Jalons</p>
+              <p className="mb-2 text-xs text-muted-foreground">
+                Les étapes sont définies ici, pas par le client. Une nouvelle commande démarre avec
+                l'appel de cadrage.
+              </p>
               <ul className="space-y-1.5">
                 {order.tasks.map((t) => (
-                  <li key={t.id}>
+                  <li key={t.id} className="flex items-stretch gap-1.5">
                     <button
                       type="button"
                       onClick={() => actions.toggleTask(cid, orderId, t.id)}
-                      className="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-2 text-left text-sm transition-colors hover:border-primary"
+                      className="flex flex-1 items-center gap-3 rounded-lg border border-border px-3 py-2 text-left text-sm transition-colors hover:border-primary"
                     >
                       <span
                         className={cn(
@@ -221,9 +228,36 @@ function ManageOrder({
                         {formatTime(t.updatedAt)}
                       </span>
                     </button>
+                    <button
+                      type="button"
+                      aria-label={`Supprimer l'étape « ${t.label} »`}
+                      onClick={() => actions.deleteTask(cid, orderId, t.id)}
+                      className="grid w-9 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
+                    >
+                      <X size={14} />
+                    </button>
                   </li>
                 ))}
               </ul>
+              <form
+                className="mt-2 flex gap-1.5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const label = newStep.trim();
+                  if (!label) return;
+                  void actions.addTask(cid, orderId, label).then(() => setNewStep(""));
+                }}
+              >
+                <Input
+                  value={newStep}
+                  onChange={(e) => setNewStep(e.target.value)}
+                  placeholder="Ajouter une étape…"
+                  className="h-9 flex-1 text-sm"
+                />
+                <Button type="submit" size="sm" variant="outline" disabled={!newStep.trim()}>
+                  <Plus size={14} /> Ajouter
+                </Button>
+              </form>
             </div>
           </CardContent>
         </Card>

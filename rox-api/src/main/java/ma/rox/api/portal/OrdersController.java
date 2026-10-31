@@ -86,6 +86,19 @@ public class OrdersController {
     return svc.toDto(svc.toggleTask(id, taskId));
   }
 
+  /** Admin-defined steps: the client journey beyond the initial call is composed here. */
+  @PostMapping("/{id}/tasks")
+  public OrderDto addTask(@PathVariable String id, @RequestBody Map<String, String> body) {
+    me.requireAdmin();
+    return svc.toDto(svc.addTask(id, body.get("label")));
+  }
+
+  @DeleteMapping("/{id}/tasks/{taskId}")
+  public OrderDto removeTask(@PathVariable String id, @PathVariable String taskId) {
+    me.requireAdmin();
+    return svc.toDto(svc.removeTask(id, taskId));
+  }
+
   @PostMapping("/{id}/requests")
   public ResponseEntity<ChangeRequestDto> addRequest(@PathVariable String id, @RequestBody Map<String, String> body) {
     RoxPrincipal p = me.requireClient();

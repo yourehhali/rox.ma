@@ -118,6 +118,16 @@ export function useAdminPortal(range: TrafficRange = "12M") {
       ordersSvc.toggleTask(orderId, taskId),
     onSuccess: invalidateAll,
   });
+  const addTaskMut = useMutation({
+    mutationFn: ({ orderId, label }: { orderId: string; label: string }) =>
+      ordersSvc.addTask(orderId, label),
+    onSuccess: invalidateAll,
+  });
+  const deleteTaskMut = useMutation({
+    mutationFn: ({ orderId, taskId }: { orderId: string; taskId: string }) =>
+      ordersSvc.deleteTask(orderId, taskId),
+    onSuccess: invalidateAll,
+  });
   const requestMut = useMutation({
     mutationFn: ({ orderId, requestId }: { orderId: string; requestId: string }) =>
       ordersSvc.handleRequest(orderId, requestId),
@@ -146,6 +156,10 @@ export function useAdminPortal(range: TrafficRange = "12M") {
         phaseMut.mutateAsync({ orderId, phase }),
       toggleTask: (_clientId: string, orderId: string, taskId: string) =>
         taskMut.mutateAsync({ orderId, taskId }),
+      addTask: (_clientId: string, orderId: string, label: string) =>
+        addTaskMut.mutateAsync({ orderId, label }),
+      deleteTask: (_clientId: string, orderId: string, taskId: string) =>
+        deleteTaskMut.mutateAsync({ orderId, taskId }),
       setStatus: (_clientId: string, orderId: string, status: OrderStatus) =>
         statusMut.mutateAsync({ orderId, status }),
       handleRequest: (_clientId: string, orderId: string, requestId: string) =>
@@ -153,7 +167,7 @@ export function useAdminPortal(range: TrafficRange = "12M") {
       reply: (clientId: string, text: string) => replyMut.mutateAsync({ clientId, text }),
       confirmBooking: (_clientId: string, bookingId: string) => confirmMut.mutateAsync(bookingId),
     }),
-    [phaseMut, taskMut, statusMut, requestMut, replyMut, confirmMut],
+    [phaseMut, taskMut, addTaskMut, deleteTaskMut, statusMut, requestMut, replyMut, confirmMut],
   );
 
   const stats: AdminStats = statsQuery.data ?? {

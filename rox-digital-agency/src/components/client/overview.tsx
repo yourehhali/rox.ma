@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useClient } from "@/components/client/client-context";
-import { PHASES, phaseProgress } from "@/lib/client-store";
+import { PHASES, orderProgress } from "@/lib/client-store";
 
 type OverviewProps = {
   onOpen: (id: string) => void;
@@ -70,10 +70,10 @@ export function OverviewPanel({ onOpen, onNew, onGoMessages }: OverviewProps) {
                     </p>
                   </div>
                   <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
-                    {phaseProgress(o.phase)}%
+                    {orderProgress(o)}%
                   </span>
                 </div>
-                <Progress value={phaseProgress(o.phase)} className="mt-3" />
+                <Progress value={orderProgress(o)} className="mt-3" />
               </button>
             ))
           )}
