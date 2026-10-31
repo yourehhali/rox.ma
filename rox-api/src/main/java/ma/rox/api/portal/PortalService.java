@@ -61,7 +61,13 @@ public class PortalService {
     ClientRefDto ref = c == null
         ? new ClientRefDto(null, o.getClientName(), o.getClientEmail())
         : new ClientRefDto(c.getId(), c.getName(), c.getEmail());
-    return new AdminOrderDto(toDto(o), ref);
+    // Admin-only AI triage; null until the first generation ever runs for this order.
+    OrderUiPromptDto ui = o.getUiPromptVerdict() == null && o.getUiPrompt() == null
+        ? null
+        : new OrderUiPromptDto(o.getUiPrompt(), o.getUiPromptVerdict(),
+            o.getUiPromptMissing() == null ? List.of() : List.copyOf(o.getUiPromptMissing()),
+            iso(o.getUiPromptAt()));
+    return new AdminOrderDto(toDto(o), ref, ui);
   }
 
   public MessageDto toDto(Message m) {

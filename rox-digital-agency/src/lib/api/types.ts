@@ -99,9 +99,21 @@ export type ClientRef = {
   email: string | null;
 };
 
+/** Admin-only AI triage of an order's brief (UiPromptService on the API). */
+export type OrderUiPrompt = {
+  /** Lovable/Bolt/v0/Trae-ready UI generation prompt; null until generated. */
+  prompt: string | null;
+  /** "ready" = real, actionable brief · "needs_admin" = follow-up required (WhatsApp alert). */
+  verdict: "ready" | "needs_admin" | null;
+  /** What to ask the client when needs_admin (French, short bullets). */
+  missing: string[];
+  at: string | null;
+};
+
 export type AdminOrder = {
   order: Order;
   client: ClientRef;
+  uiPrompt: OrderUiPrompt | null;
 };
 
 export type NewOrderInput = {

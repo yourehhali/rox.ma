@@ -90,6 +90,23 @@ export async function aiDraftPortfolio(
   );
 }
 
+// --- AI free-tier quota ------------------------------------------------------
+
+/** Server-side Gemini budget for the admin UI (see AiQuotaService). */
+export type PortfolioAiQuota = {
+  enabled: boolean;
+  dailyLimit: number;
+  usedToday: number;
+  remainingToday: number;
+  resetInSeconds: number;
+  coolingDown: boolean;
+  cooldownSeconds: number;
+};
+
+export function getAiQuota(): Promise<PortfolioAiQuota> {
+  return apiFetch<PortfolioAiQuota>("/portfolio/ai-usage", { method: "GET" }, { role: "admin" });
+}
+
 // --- Media upload -----------------------------------------------------------
 
 /**

@@ -1,5 +1,7 @@
 package ma.rox.api.events;
 
+import java.util.List;
+
 /**
  * Domain events fired by PortalService and consumed by NotificationListener for
  * cross-cutting reactions (persist notification rows + WS broadcasts). Kept as
@@ -22,4 +24,8 @@ public final class Events {
   public record ChangeRequestHandled(String requestId, String orderId, String clientId) {}
   public record StageChanged(String orderId, String clientId, String fromStage, String toStage,
                               String actorId) {}
+
+  /** AI brief triage finished for a new order (UiPromptService). Verdict:
+   *  "ready" | "needs_admin" — the notifier alerts the admin on needs_admin. */
+  public record OrderTriaged(String orderId, String title, String verdict, List<String> missing) {}
 }

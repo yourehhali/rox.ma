@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Eye,
   EyeOff,
@@ -23,7 +23,32 @@ import { Textarea } from "@/components/ui/textarea";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { SECTORS, emptyDraft, type PortfolioItem } from "@/lib/portfolio-store";
 import { mediaUrl } from "@/lib/media";
-import { aiDraftPortfolio, uploadPortfolioMedia } from "@/services/portfolio";
+import {
+  aiDraftPortfolio,
+  getAiQuota,
+  uploadPortfolioMedia,
+  type PortfolioAiQuota,
+} from "@/services/portfolio";
+
+// Free-tier helpers: one short line under the AI button telling the admin what's
+// left of today's Gemini budget, and whether the assistant is currently paused.
+function quotaBlocked(q: PortfolioAiQuota | null): boolean {
+  if (!q) return false; // unknown — let the server decide
+  return !q.enabled || q.coolingDown || q.remainingToday <= 0;
+}
+
+function quotaLine(q: PortfolioAiQuota | null): string {
+  if (!q) return "";
+  if (!q.enabled) return "Assistant IA non configuré côté serveur (GEMINI_API_KEY).";
+  if (q.coolingDown) {
+    return `Pause après limite free-tier Google — réessai dans ~${q.cooldownSeconds} s.`;
+  }
+  if (q.remainingToday <= 0) {
+    const h = Math.max(1, Math.round(q.resetInSeconds / 3600));
+    return `Quota du jour épuisé (${q.dailyLimit}/jour) — retour dans ~${h} h.`;
+  }
+  return `Free-tier : ${q.remainingToday}/${q.dailyLimit} générations restantes aujourd'hui.`;
+}
 
 export function PortfolioPanel() {
   const { items, ready, actions } = usePortfolio();
@@ -31,10 +56,20 @@ export function PortfolioPanel() {
   const [tagsText, setTagsText] = useState("");
   const [brief, setBrief] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
+  const [quota, setQuota] = useState<PortfolioAiQuota | null>(null);
   const [thumbBusy, setThumbBusy] = useState(false);
   const [galleryBusy, setGalleryBusy] = useState(false);
   const thumbInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  // Free-tier budget for the "Remplir avec l'IA" panel. Best-effort: the assistant
+  // still works (server-guarded) if this read fails, the chip just stays hidden.
+  const refreshQuota = () => {
+    getAiQuota()
+      .then(setQuota)
+      .catch(() => setQuota(null));
+  };
+  useEffect(refreshQuota, []);
 
   const openNew = () => {
     setDraft(emptyDraft());
@@ -91,6 +126,7 @@ export function PortfolioPanel() {
       toast.error(err instanceof Error ? err.message : "Échec de la génération IA.");
     } finally {
       setAiBusy(false);
+      refreshQuota();
     }
   };
 
@@ -168,18 +204,20 @@ export function PortfolioPanel() {
               </p>
               <Textarea
                 rows={2}
+                maxLength={400}
                 value={brief}
                 onChange={(e) => setBrief(e.target.value)}
                 placeholder="Ex. Restaurant à Oujda, besoin d'un site vitrine rapide avec menu et réservation WhatsApp."
                 className="mt-3"
               />
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] text-muted-foreground">{quotaLine(quota)}</p>
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
                   onClick={runAi}
-                  disabled={aiBusy}
+                  disabled={aiBusy || quotaBlocked(quota)}
                 >
                   {aiBusy ? (
                     <>

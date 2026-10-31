@@ -2,6 +2,7 @@ package ma.rox.api.ai;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.MediaType;
@@ -31,15 +32,21 @@ public class GeminiClient {
 
   /**
    * Ask Gemini for a plain text completion. When {@code jsonMode} is set the model is
-   * instructed to return only valid JSON (used for structured drafts).
-   * Throws {@link IllegalStateException} on transport/parse failure; callers map it.
+   * instructed to return only valid JSON (used for structured drafts). When
+   * {@code maxOutputTokens} is positive the reply is capped — on the free tier this
+   * keeps each call small and predictable. Throws {@link IllegalStateException} on
+   * transport/parse failure; callers map it.
    */
-  public String generate(String baseUrl, String apiKey, String model, String prompt, boolean jsonMode) {
+  public String generate(
+      String baseUrl, String apiKey, String model, String prompt, boolean jsonMode,
+      int maxOutputTokens) {
+    Map<String, Object> gen = new HashMap<>();
+    gen.put("temperature", 0.4);
+    if (jsonMode) gen.put("responseMimeType", "application/json");
+    if (maxOutputTokens > 0) gen.put("maxOutputTokens", maxOutputTokens);
     Map<String, Object> body = Map.of(
         "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
-        "generationConfig", jsonMode
-            ? Map.of("temperature", 0.4, "responseMimeType", "application/json")
-            : Map.of("temperature", 0.4));
+        "generationConfig", gen);
 
     String url = trimTrailing(baseUrl) + "/models/" + model + ":generateContent";
     String raw = http.post().uri(url)

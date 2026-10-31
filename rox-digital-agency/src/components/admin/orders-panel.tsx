@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ArrowLeft, Check, CircleDot, Inbox, Plus, X } from "lucide-react";
+import { ArrowLeft, Check, CircleDot, Copy, Inbox, Loader2, Plus, Sparkles, X } from "lucide-react";
+import { toast } from "sonner";
 import { formatDate, orderStatusMeta, formatTime } from "@/components/admin/data";
 import type { AdminPortal } from "@/hooks/use-admin-portal";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +70,9 @@ export function OrdersPanel({ portal }: { portal: AdminPortal }) {
                 const status = orderStatusMeta[order.status];
                 return (
                   <TableRow key={order.id}>
-                    <TableCell className="pl-6 font-medium">{client.name || "Nouveau prospect"}</TableCell>
+                    <TableCell className="pl-6 font-medium">
+                      {client.name || "Nouveau prospect"}
+                    </TableCell>
                     <TableCell>{order.title}</TableCell>
                     <TableCell className="text-muted-foreground">{order.service}</TableCell>
                     <TableCell>
@@ -118,12 +121,35 @@ function ManageOrder({
   onBack: () => void;
 }) {
   const [newStep, setNewStep] = useState("");
+  const [regenBusy, setRegenBusy] = useState(false);
   const found = portal.allOrders.find(({ order }) => order.id === orderId);
   if (!found) return null;
-  const { client, order } = found;
+  const { client, order, uiPrompt } = found;
   const actions = portal.actions;
   const cid = clientId ?? ""; // server derives the client from the order; keep actions' signature
   const status = orderStatusMeta[order.status];
+
+  const copyUiPrompt = async () => {
+    if (!uiPrompt?.prompt) return;
+    try {
+      await navigator.clipboard.writeText(uiPrompt.prompt);
+      toast.success("Prompt copié — collez-le dans Lovable, Bolt, v0 ou Trae.");
+    } catch {
+      toast.error("Copie impossible dans ce navigateur.");
+    }
+  };
+
+  const regenerate = async () => {
+    setRegenBusy(true);
+    try {
+      await actions.regenerateUiPrompt(orderId);
+      toast.success("Analyse IA mise à jour.");
+    } catch {
+      /* the global mutation toast already surfaced the error (quota, IA indispo…) */
+    } finally {
+      setRegenBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -156,6 +182,72 @@ function ManageOrder({
           </CardHeader>
           <CardContent className="space-y-6">
             <p className="text-sm text-muted-foreground">{order.description}</p>
+
+            {/* AI brief triage: verdict on the client's description + a copy-ready
+                UI generation prompt for Lovable / Bolt / v0 / Trae. needs_admin
+                also alerts the agency over WhatsApp (server-side). */}
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Sparkles size={15} className="text-primary" /> Analyse IA du brief
+                </div>
+                <span
+                  className={cn(
+                    "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
+                    !uiPrompt
+                      ? "bg-muted text-muted-foreground"
+                      : uiPrompt.verdict === "ready"
+                        ? "bg-emerald-500/10 text-emerald-500"
+                        : "bg-amber-500/10 text-amber-500",
+                  )}
+                >
+                  {!uiPrompt
+                    ? "Non générée"
+                    : uiPrompt.verdict === "ready"
+                      ? "Brief prêt"
+                      : "Intervention requise"}
+                </span>
+              </div>
+
+              {uiPrompt && uiPrompt.verdict !== "ready" && uiPrompt.missing.length > 0 ? (
+                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
+                  {uiPrompt.missing.map((m) => (
+                    <li key={m}>{m}</li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {uiPrompt?.prompt ? (
+                <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3 text-xs leading-relaxed text-foreground">
+                  {uiPrompt.prompt}
+                </pre>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {!uiPrompt
+                    ? "Génération automatique à l'arrivée de la commande (si l'IA est configurée). Vous pouvez aussi relancer ici."
+                    : "Pas de prompt : brief jugé inexploitable ou quota IA du jour épuisé."}
+                </p>
+              )}
+
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                <Button size="sm" variant="outline" onClick={regenerate} disabled={regenBusy}>
+                  {regenBusy ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" /> Analyse…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={13} /> Régénérer
+                    </>
+                  )}
+                </Button>
+                {uiPrompt?.prompt ? (
+                  <Button size="sm" onClick={copyUiPrompt}>
+                    <Copy size={13} /> Copier le prompt
+                  </Button>
+                ) : null}
+              </div>
+            </div>
 
             {/* Progress bar — driven by the admin-defined steps below */}
             <div className="flex items-center gap-2">

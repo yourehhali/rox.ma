@@ -18,4 +18,15 @@ public final class PortfolioAiDtos {
       String title, String sector, String service, String city,
       String summary, String result, List<String> tags,
       String colorA, String colorB) {}
+
+  /**
+   * Free-tier usage budget for the admin UI: how many generations are left today
+   * per scope (portfolio drafts vs order triage) and whether the assistant is
+   * briefly paused after a Google 429. Read-only — it never blocks anything by
+   * itself, the numbers just steer the interface.
+   */
+  public record AiQuotaDto(
+      boolean enabled, int dailyLimit, int usedToday, int remainingToday,
+      int orderDailyLimit, int orderUsedToday, int orderRemainingToday,
+      long resetInSeconds, boolean coolingDown, long cooldownSeconds) {}
 }

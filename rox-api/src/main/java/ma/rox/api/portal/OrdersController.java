@@ -3,6 +3,7 @@ package ma.rox.api.portal;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
+import ma.rox.api.ai.UiPromptService;
 import ma.rox.api.error.ApiException;
 import ma.rox.api.portal.PortalDtos.*;
 import ma.rox.api.security.CurrentUser;
@@ -18,10 +19,12 @@ public class OrdersController {
 
   private final PortalService svc;
   private final CurrentUser me;
+  private final UiPromptService uiPrompts;
 
-  public OrdersController(PortalService svc, CurrentUser me) {
+  public OrdersController(PortalService svc, CurrentUser me, UiPromptService uiPrompts) {
     this.svc = svc;
     this.me = me;
+    this.uiPrompts = uiPrompts;
   }
 
   @GetMapping
@@ -38,6 +41,19 @@ public class OrdersController {
     RoxPrincipal p = me.requireClient();
     Order o = svc.createOrder(p.id(), input);
     return ResponseEntity.status(HttpStatus.CREATED).body(svc.toDto(o));
+  }
+
+  /**
+   * Admin: (re)run the AI triage for one order — verdict on the brief plus the
+   * copy-ready Lovable/Trae UI prompt. Runs inline (a Gemini hop, a few seconds);
+   * returns the refreshed admin view of the order.
+   */
+  @PostMapping("/{id}/ui-prompt")
+  public AdminOrderDto regenerateUiPrompt(@PathVariable String id) {
+    me.requireAdmin();
+    Order o = svc.requireOrder(id);
+    uiPrompts.triage(o.getId());
+    return svc.toAdminDto(svc.requireOrder(id));
   }
 
   /**

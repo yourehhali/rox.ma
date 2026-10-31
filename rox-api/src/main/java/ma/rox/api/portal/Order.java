@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import ma.rox.api.auth.ClientAccount;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "orders")
@@ -34,6 +36,16 @@ public class Order {
   @Column(nullable = false) private String status;
   @Column(name = "stage", nullable = false) private String stage = "LEAD";
   @Column(name = "created_at", nullable = false) private OffsetDateTime createdAt;
+
+  // AI triage of the client's brief (UiPromptService): a Lovable/Trae-ready UI
+  // generation prompt + a ready/needs_admin verdict with what's missing. Null
+  // verdict means "never generated". Admin-facing only (AdminOrderDto.ui).
+  @Column(name = "ui_prompt") private String uiPrompt;
+  @Column(name = "ui_prompt_verdict") private String uiPromptVerdict;
+  @JdbcTypeCode(SqlTypes.ARRAY)
+  @Column(name = "ui_prompt_missing", columnDefinition = "text[]")
+  private List<String> uiPromptMissing = new ArrayList<>();
+  @Column(name = "ui_prompt_at") private OffsetDateTime uiPromptAt;
 
   @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
   @OrderBy("position ASC")

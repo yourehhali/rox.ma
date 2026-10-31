@@ -7,6 +7,7 @@ import ma.rox.api.events.Events.ChangeRequestSubmitted;
 import ma.rox.api.events.Events.ClientRegistered;
 import ma.rox.api.events.Events.MessagePosted;
 import ma.rox.api.events.Events.OrderCreated;
+import ma.rox.api.events.Events.OrderTriaged;
 import ma.rox.api.whatsapp.WhatsAppClient.SessionInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +53,22 @@ public class AdminWhatsAppNotifier {
       msg.append("\n\n").append(preview(e.description(), 300));
     }
     send(msg.toString());
+  }
+
+  /** AI triage flagged a brief that needs a human: ping the admin with what's missing. */
+  @Async
+  @EventListener
+  public void onOrderTriaged(OrderTriaged e) {
+    if (!"needs_admin".equals(e.verdict())) return;
+    StringBuilder msg = new StringBuilder(PREFIX)
+        .append("Brief à clarifier — commande ").append(nvl(e.orderId())).append("\n")
+        .append(nvl(e.title())).append("\n\nÀ demander au client :\n");
+    if (e.missing() == null || e.missing().isEmpty()) {
+      msg.append("• Description trop vague pour démarrer");
+    } else {
+      for (String m : e.missing()) msg.append("• ").append(m).append('\n');
+    }
+    send(msg.toString().stripTrailing());
   }
 
   @Async

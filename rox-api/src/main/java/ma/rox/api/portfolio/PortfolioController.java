@@ -3,7 +3,9 @@ package ma.rox.api.portfolio;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
+import ma.rox.api.ai.AiQuotaService;
 import ma.rox.api.ai.PortfolioAiDtos.AiDraftRequest;
+import ma.rox.api.ai.PortfolioAiDtos.AiQuotaDto;
 import ma.rox.api.ai.PortfolioAiDtos.PortfolioDraftDto;
 import ma.rox.api.ai.PortfolioAiService;
 import ma.rox.api.error.ApiException;
@@ -21,11 +23,14 @@ public class PortfolioController {
   private final PortfolioService svc;
   private final CurrentUser me;
   private final PortfolioAiService ai;
+  private final AiQuotaService aiQuota;
 
-  public PortfolioController(PortfolioService svc, CurrentUser me, PortfolioAiService ai) {
+  public PortfolioController(
+      PortfolioService svc, CurrentUser me, PortfolioAiService ai, AiQuotaService aiQuota) {
     this.svc = svc;
     this.me = me;
     this.ai = ai;
+    this.aiQuota = aiQuota;
   }
 
   /** ?all=true (admin) returns drafts too. */
@@ -47,6 +52,13 @@ public class PortfolioController {
   public PortfolioDraftDto aiDraft(@RequestBody AiDraftRequest req) {
     me.requireAdmin();
     return ai.draft(req);
+  }
+
+  /** Free-tier usage budget for the admin UI (remaining today, cooldown state). */
+  @GetMapping("/ai-usage")
+  public AiQuotaDto aiUsage() {
+    me.requireAdmin();
+    return aiQuota.snapshot();
   }
 
   @PostMapping

@@ -28,7 +28,12 @@ public final class PortalDtos {
 
   /** Flattened order + owning client (used by admin order list). */
   public record ClientRefDto(String id, String name, String email) {}
-  public record AdminOrderDto(OrderDto order, ClientRefDto client) {}
+
+  /** Admin-only AI triage of the brief: Lovable/Trae prompt + ready/needs_admin verdict. */
+  public record OrderUiPromptDto(
+      String prompt, String verdict, List<String> missing, String at) {}
+
+  public record AdminOrderDto(OrderDto order, ClientRefDto client, OrderUiPromptDto ui) {}
 
   /** sender/`from` is client|rep */
   public record MessageDto(String id, String clientId, String orderId, String at, String from, String text) {}

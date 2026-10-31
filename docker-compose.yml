@@ -63,12 +63,20 @@ services:
       ROX_RATE_LIMIT_LOGIN_PER_MIN: ${ROX_RATE_LIMIT_LOGIN_PER_MIN:-5}
       ROX_RATE_LIMIT_SIGNUP_PER_HOUR: ${ROX_RATE_LIMIT_SIGNUP_PER_HOUR:-2}
       ROX_RATE_LIMIT_CONTACT_PER_MIN: ${ROX_RATE_LIMIT_CONTACT_PER_MIN:-5}
+      ROX_RATE_LIMIT_AI_DRAFT_PER_MIN: ${ROX_RATE_LIMIT_AI_DRAFT_PER_MIN:-4}
       # Portfolio media uploads (persisted on the rox-uploads volume below).
       ROX_UPLOAD_DIR: ${ROX_UPLOAD_DIR:-/app/uploads}
       ROX_UPLOAD_MAX_BYTES: ${ROX_UPLOAD_MAX_BYTES:-5242880}
       # Gemini (free tier) — powers the admin "Remplir avec l'IA" helper. Optional.
+      # DAILY_LIMIT/MAX_OUTPUT_TOKENS keep us under Google's free RPM/TPM/RPD caps.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_DAILY_LIMIT: ${GEMINI_DAILY_LIMIT:-50}
+      GEMINI_MAX_OUTPUT_TOKENS: ${GEMINI_MAX_OUTPUT_TOKENS:-700}
+      # New-order AI triage (verdict + Lovable/Trae prompt), own daily budget.
+      GEMINI_ORDER_PROMPT_ENABLED: ${GEMINI_ORDER_PROMPT_ENABLED:-true}
+      GEMINI_ORDER_DAILY_LIMIT: ${GEMINI_ORDER_DAILY_LIMIT:-20}
+      GEMINI_ORDER_MAX_OUTPUT_TOKENS: ${GEMINI_ORDER_MAX_OUTPUT_TOKENS:-1100}
     volumes:
       - rox-uploads:/app/uploads
     healthcheck:

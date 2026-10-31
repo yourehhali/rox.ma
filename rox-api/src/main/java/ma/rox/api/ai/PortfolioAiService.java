@@ -7,14 +7,20 @@ import java.util.List;
 import ma.rox.api.ai.PortfolioAiDtos.AiDraftRequest;
 import ma.rox.api.ai.PortfolioAiDtos.PortfolioDraftDto;
 import ma.rox.api.error.ApiException;
+import ma.rox.api.error.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientResponseException;
 
 /**
  * Turns a short brief into a draft portfolio item via Gemini. Purely stateless and
  * write-free: it returns a filled form for the admin to review; nothing touches the
  * DB here. The API key is server-side only (see {@link GeminiProperties}).
+ *
+ * <p>Free-tier stewardship: every call goes through {@link AiQuotaService} — a
+ * self-imposed daily budget plus a cooldown after a Google-side 429 — so the key
+ * is used to its maximum without ever getting hard-throttled.
  */
 @Service
 public class PortfolioAiService {
@@ -22,14 +28,18 @@ public class PortfolioAiService {
   private static final Logger log = LoggerFactory.getLogger(PortfolioAiService.class);
   private static final java.util.regex.Pattern HEX =
       java.util.regex.Pattern.compile("#[0-9A-Fa-f]{6}");
+  /** Pause imposed after Google answers 429 — enough to clear an RPM window. */
+  private static final long GOOGLE_THROTTLE_COOLDOWN_SECONDS = 60;
 
   private final GeminiClient gemini;
   private final GeminiProperties props;
+  private final AiQuotaService quota;
   private final ObjectMapper mapper = new ObjectMapper();
 
-  public PortfolioAiService(GeminiClient gemini, GeminiProperties props) {
+  public PortfolioAiService(GeminiClient gemini, GeminiProperties props, AiQuotaService quota) {
     this.gemini = gemini;
     this.props = props;
+    this.quota = quota;
   }
 
   public PortfolioDraftDto draft(AiDraftRequest req) {
@@ -41,12 +51,38 @@ public class PortfolioAiService {
       throw ApiException.badRequest("Décrivez brièvement le projet pour lancer l'IA.");
     }
 
+    // Stay inside the free tier: honour the Google-throttle cooldown, then spend
+    // one unit of our daily budget. The unit is refunded if the call never lands.
+    if (quota.coolingDown()) {
+      throw new ApiException(429, ErrorCode.rate_limited,
+          "L'assistant IA observe une courte pause (limite free-tier atteinte chez Google).");
+    }
+    if (!quota.tryConsume(AiQuotaService.Scope.PORTFOLIO)) {
+      throw new ApiException(429, ErrorCode.rate_limited,
+          "Quota IA du jour atteint (" + props.dailyLimit() + " générations)."
+              + " Réessayez après minuit ou augmentez GEMINI_DAILY_LIMIT.");
+    }
+
     String text;
     try {
-      text = gemini.generate(props.baseUrl(), props.apiKey(), props.model(), prompt(req, brief), true);
+      text = gemini.generate(props.baseUrl(), props.apiKey(), props.model(),
+          prompt(req, brief), true, props.maxOutputTokens());
+    } catch (RestClientResponseException ex) {
+      quota.refund(AiQuotaService.Scope.PORTFOLIO); // Google rejected the call — don't charge our budget
+      if (ex.getStatusCode().value() == 429) {
+        quota.startCooldown(GOOGLE_THROTTLE_COOLDOWN_SECONDS);
+        log.warn("Gemini free-tier 429 — cooldown {}s", GOOGLE_THROTTLE_COOLDOWN_SECONDS);
+        throw new ApiException(429, ErrorCode.rate_limited,
+            "Limite free-tier Gemini atteinte — réessai possible dans "
+                + GOOGLE_THROTTLE_COOLDOWN_SECONDS + " s.");
+      }
+      log.warn("Gemini draft call failed ({}): {}", ex.getStatusCode().value(), ex.getMessage());
+      throw new ApiException(502, ErrorCode.internal_error,
+          "L'assistant IA est momentan\u00e9ment indisponible.");
     } catch (RuntimeException ex) {
+      quota.refund(AiQuotaService.Scope.PORTFOLIO);
       log.warn("Gemini draft call failed: {}", ex.getMessage());
-      throw new ApiException(502, ma.rox.api.error.ErrorCode.internal_error,
+      throw new ApiException(502, ErrorCode.internal_error,
           "L'assistant IA est momentan\u00e9ment indisponible.");
     }
 
@@ -97,21 +133,18 @@ public class PortfolioAiService {
   /** Gemini may wrap JSON in fences or add prose — isolate the outermost object. */
   private JsonNode parseJson(String text) {
     if (text == null || text.isBlank()) {
-      throw new ApiException(502, ma.rox.api.error.ErrorCode.internal_error,
-          "Réponse IA vide.");
+      throw new ApiException(502, ErrorCode.internal_error, "Réponse IA vide.");
     }
     int start = text.indexOf('{');
     int end = text.lastIndexOf('}');
     if (start < 0 || end <= start) {
       log.warn("Gemini returned no JSON object: {}", preview(text));
-      throw new ApiException(502, ma.rox.api.error.ErrorCode.internal_error,
-          "Réponse IA illisible.");
+      throw new ApiException(502, ErrorCode.internal_error, "Réponse IA illisible.");
     }
     try {
       return mapper.readTree(text.substring(start, end + 1));
     } catch (Exception ex) {
-      throw new ApiException(502, ma.rox.api.error.ErrorCode.internal_error,
-          "Réponse IA illisible.");
+      throw new ApiException(502, ErrorCode.internal_error, "Réponse IA illisible.");
     }
   }
 

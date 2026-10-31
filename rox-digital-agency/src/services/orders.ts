@@ -30,6 +30,16 @@ export async function getOrder(orderId: string): Promise<Order> {
   return mapOrder(raw);
 }
 
+/** Admin: re-run the AI brief triage + Lovable/Trae prompt generation for one order. */
+export async function regenerateUiPrompt(orderId: string): Promise<AdminOrder> {
+  const raw = await apiFetch<RawAdminOrder>(
+    `/orders/${orderId}/ui-prompt`,
+    { method: "POST" },
+    { role: "admin" },
+  );
+  return mapAdminOrder(raw);
+}
+
 export async function createOrder(input: NewOrderInput): Promise<Order> {
   const raw = await apiFetch<RawOrder>(
     "/orders",

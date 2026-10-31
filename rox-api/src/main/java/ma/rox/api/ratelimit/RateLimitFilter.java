@@ -45,6 +45,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
       @Value("${rox.rate-limit.login-per-minute:5}") long loginPerMinute,
       @Value("${rox.rate-limit.signup-per-hour:2}") long signupPerHour,
       @Value("${rox.rate-limit.contact-per-minute:5}") long contactPerMinute,
+      @Value("${rox.rate-limit.ai-draft-per-minute:4}") long aiDraftPerMinute,
       ObjectMapper json) {
     this.enabled = enabled;
     this.json = json;
@@ -56,7 +57,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         new Rule("resend-otp",    "POST", "/auth/client/resend-otp", 3,          Duration.ofHours(1)),
         new Rule("contact",       "POST", "/contact",            contactPerMinute, Duration.ofMinutes(1)),
         new Rule("guest-order",   "POST", "/orders/guest",       contactPerMinute, Duration.ofMinutes(1)),
-        new Rule("message",       "POST", "/messages",           contactPerMinute, Duration.ofMinutes(1)));
+        new Rule("message",       "POST", "/messages",           contactPerMinute, Duration.ofMinutes(1)),
+        // Keeps one admin from hammering Gemini past the free-tier RPM window.
+        new Rule("ai-draft",      "POST", "/portfolio/ai-draft", aiDraftPerMinute, Duration.ofMinutes(1)));
   }
 
   @Override

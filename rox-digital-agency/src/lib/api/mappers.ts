@@ -57,7 +57,13 @@ type RawOrder = {
   history: RawServiceHistoryItem[];
 };
 type RawClientRef = { id: string | null; name: string | null; email: string | null };
-type RawAdminOrder = { order: RawOrder; client: RawClientRef };
+type RawOrderUi = {
+  prompt: string | null;
+  verdict: string | null;
+  missing: string[] | null;
+  at: string | null;
+};
+type RawAdminOrder = { order: RawOrder; client: RawClientRef; ui?: RawOrderUi | null };
 type RawMessage = {
   id: string;
   clientId?: string;
@@ -115,7 +121,19 @@ export function mapClientRef(raw: RawClientRef): ClientRef {
 }
 
 export function mapAdminOrder(raw: RawAdminOrder): AdminOrder {
-  return { order: mapOrder(raw.order), client: mapClientRef(raw.client) };
+  return {
+    order: mapOrder(raw.order),
+    client: mapClientRef(raw.client),
+    uiPrompt: raw.ui
+      ? {
+          prompt: raw.ui.prompt ?? null,
+          verdict:
+            raw.ui.verdict === "ready" || raw.ui.verdict === "needs_admin" ? raw.ui.verdict : null,
+          missing: raw.ui.missing ?? [],
+          at: raw.ui.at ?? null,
+        }
+      : null,
+  };
 }
 
 export function mapMessage(raw: RawMessage): Message {
