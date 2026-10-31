@@ -8,15 +8,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Loader2,
-  QrCode,
-  RefreshCw,
-  Save,
-  Send,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, QrCode, RefreshCw, Save, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,11 +55,19 @@ function errMessage(err: unknown, fallback: string): string {
 export function WhatsAppPanel() {
   const qc = useQueryClient();
 
-  const { data: settings, isLoading, isError: settingsError } = useQuery({
+  const {
+    data: settings,
+    isLoading,
+    isError: settingsError,
+  } = useQuery({
     queryKey: keys.whatsapp.settings(),
     queryFn: getSettings,
   });
-  const { data: status, refetch: refetchStatus, isFetching: statusFetching } = useQuery({
+  const {
+    data: status,
+    refetch: refetchStatus,
+    isFetching: statusFetching,
+  } = useQuery({
     queryKey: keys.whatsapp.status(),
     queryFn: getStatus,
   });
@@ -142,11 +142,13 @@ export function WhatsAppPanel() {
   const testMut = useMutation({
     mutationFn: (phone: string) => sendTest(phone),
     onSuccess: (res) => {
-      setTestErr(null);
-      setTestMsg(
-        res.sent ? "Message de test envoyé." : res.error ?? "Échec de l'envoi.",
-      );
-      if (!res.sent) setTestErr(res.error ?? "Échec de l'envoi."), setTestMsg(null);
+      if (res.sent) {
+        setTestErr(null);
+        setTestMsg("Message de test envoyé.");
+      } else {
+        setTestMsg(null);
+        setTestErr(res.error ?? "Échec de l'envoi.");
+      }
     },
     onError: (err) => {
       setTestMsg(null);
@@ -156,7 +158,9 @@ export function WhatsAppPanel() {
   });
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Chargement de la configuration WhatsApp…</p>;
+    return (
+      <p className="text-sm text-muted-foreground">Chargement de la configuration WhatsApp…</p>
+    );
   }
 
   const sessionStatus = status?.sessionStatus ?? null;
@@ -195,7 +199,9 @@ export function WhatsAppPanel() {
           {status?.sessionStatus && (
             <StatusPill
               label={`Session : ${status.sessionStatus}`}
-              tone={status.sessionPaired ? "ok" : status.sessionStatus === "qr_ready" ? "warn" : "muted"}
+              tone={
+                status.sessionPaired ? "ok" : status.sessionStatus === "qr_ready" ? "warn" : "muted"
+              }
             />
           )}
           {status?.gatewayError && (
@@ -209,8 +215,8 @@ export function WhatsAppPanel() {
         <CardHeader>
           <CardTitle className="text-base">Configuration</CardTitle>
           <CardDescription>
-            Activez l'envoi du code de vérification par WhatsApp en plus de l'e-mail. L'e-mail
-            reste le canal de référence.
+            Activez l'envoi du code de vérification par WhatsApp en plus de l'e-mail. L'e-mail reste
+            le canal de référence.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -244,11 +250,15 @@ export function WhatsAppPanel() {
             </Field>
           </div>
 
-          <Field label="Clé API OpenWA" htmlFor="wa-key" hint={
-            settings?.apiKeySet
-              ? `Enregistrée (${settings.apiKeyMasked ?? "••••••••"}) — laissez vide pour conserver.`
-              : "Laissez vide pour conserver la clé enregistrée."
-          }>
+          <Field
+            label="Clé API OpenWA"
+            htmlFor="wa-key"
+            hint={
+              settings?.apiKeySet
+                ? `Enregistrée (${settings.apiKeyMasked ?? "••••••••"}) — laissez vide pour conserver.`
+                : "Laissez vide pour conserver la clé enregistrée."
+            }
+          >
             <Input
               id="wa-key"
               type="password"
@@ -290,7 +300,11 @@ export function WhatsAppPanel() {
               }}
               disabled={saveMut.isPending}
             >
-              {saveMut.isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {saveMut.isPending ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Save size={15} />
+              )}
               Enregistrer
             </Button>
           </div>
@@ -302,9 +316,9 @@ export function WhatsAppPanel() {
         <CardHeader>
           <CardTitle className="text-base">Notifications admin (WhatsApp)</CardTitle>
           <CardDescription>
-            Recevez une alerte sur votre propre numéro à chaque activité du site : nouvelle
-            commande ou demande, inscription client, message, demande d'appel, demande de
-            modification. Nécessite une session OpenWA appairée, indépendante du canal OTP.
+            Recevez une alerte sur votre propre numéro à chaque activité du site : nouvelle commande
+            ou demande, inscription client, message, demande d'appel, demande de modification.
+            Nécessite une session OpenWA appairée, indépendante du canal OTP.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -371,18 +385,32 @@ export function WhatsAppPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => createMut.mutate()} disabled={createMut.isPending}>
-              {createMut.isPending ? <Loader2 size={15} className="animate-spin" /> : <QrCode size={15} />}
+            <Button
+              variant="outline"
+              onClick={() => createMut.mutate()}
+              disabled={createMut.isPending}
+            >
+              {createMut.isPending ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <QrCode size={15} />
+              )}
               Créer la session
             </Button>
             <Button onClick={() => startMut.mutate()} disabled={startMut.isPending || !hasSession}>
-              {startMut.isPending ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+              {startMut.isPending ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <RefreshCw size={15} />
+              )}
               Démarrer / afficher le QR
             </Button>
           </div>
 
           {createMut.isError && (
-            <Banner tone="bad">{errMessage(createMut.error, "Création de session impossible.")}</Banner>
+            <Banner tone="bad">
+              {errMessage(createMut.error, "Création de session impossible.")}
+            </Banner>
           )}
           {startMut.isError && (
             <Banner tone="bad">{errMessage(startMut.error, "Démarrage impossible.")}</Banner>
@@ -407,7 +435,9 @@ export function WhatsAppPanel() {
             </p>
           )}
           {status?.sessionPaired && (
-            <Banner tone="ok">Session appairée et prête — les codes seront envoyés sur WhatsApp.</Banner>
+            <Banner tone="ok">
+              Session appairée et prête — les codes seront envoyés sur WhatsApp.
+            </Banner>
           )}
         </CardContent>
       </Card>
@@ -417,8 +447,8 @@ export function WhatsAppPanel() {
         <CardHeader>
           <CardTitle className="text-base">Test d'envoi</CardTitle>
           <CardDescription>
-            Envoie un vrai message au format OTP sur le numéro saisi (format international, indicatif
-            compris).
+            Envoie un vrai message au format OTP sur le numéro saisi (format international,
+            indicatif compris).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -441,7 +471,11 @@ export function WhatsAppPanel() {
               }}
               disabled={testMut.isPending || !testPhone.trim()}
             >
-              {testMut.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              {testMut.isPending ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Send size={15} />
+              )}
               Envoyer le test
             </Button>
           </div>
@@ -488,7 +522,9 @@ function StatusPill({ label, tone }: { label: string; tone: "ok" | "bad" | "warn
           ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
           : "bg-muted text-muted-foreground border-border";
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}
+    >
       {tone === "ok" && <CheckCircle2 size={12} />}
       {tone === "bad" && <AlertTriangle size={12} />}
       {label}

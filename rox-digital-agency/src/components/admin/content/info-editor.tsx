@@ -72,9 +72,8 @@ export function InfoEditor() {
         <CardHeader>
           <CardTitle className="text-base">Bouton WhatsApp flottant</CardTitle>
           <CardDescription>
-            Bulle fixe visible sur tout le site public. Elle n'apparaît que si elle est
-            activée <span className="font-medium">et</span> qu'un numéro WhatsApp est renseigné
-            ci-dessus.
+            Bulle fixe visible sur tout le site public. Elle n'apparaît que si elle est activée{" "}
+            <span className="font-medium">et</span> qu'un numéro WhatsApp est renseigné ci-dessus.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

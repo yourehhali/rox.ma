@@ -124,7 +124,7 @@ export function MessagesPanel({
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <Card className="lg:col-span-2">
-        <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <div>
             <CardTitle className="text-base">Conversation</CardTitle>
             <CardDescription>
@@ -135,7 +135,7 @@ export function MessagesPanel({
             value={activeId ?? ""}
             onChange={(e) => onClientChange(e.target.value)}
             aria-label="Choisir un client"
-            className="h-9 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+            className="h-9 max-w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
           >
             {clients.map((c) => (
               <option key={c.user.id} value={c.user.id}>
@@ -153,13 +153,13 @@ export function MessagesPanel({
                   <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
                     <div
                       className={cn(
-                        "max-w-[80%] rounded-2xl px-3.5 py-2 text-sm",
+                        "max-w-[80%] min-w-0 rounded-2xl px-3.5 py-2 text-sm",
                         mine
                           ? "bg-primary text-primary-foreground"
                           : "border border-border bg-muted/50",
                       )}
                     >
-                      <p className="whitespace-pre-wrap">{m.text}</p>
+                      <p className="whitespace-pre-wrap break-words">{m.text}</p>
                       <p
                         className={cn(
                           "mt-1 text-[11px]",
@@ -207,9 +207,9 @@ export function MessagesPanel({
                 }
               }}
               placeholder="Écrire une réponse…"
-              className="h-10 flex-1 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+              className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
             />
-            <Button onClick={send} disabled={!draft.trim() || sending}>
+            <Button onClick={send} disabled={!draft.trim() || sending} className="shrink-0">
               <Send size={16} /> {sending ? "Envoi…" : "Envoyer"}
             </Button>
           </div>

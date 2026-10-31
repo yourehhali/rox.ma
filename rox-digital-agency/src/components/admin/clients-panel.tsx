@@ -60,7 +60,9 @@ export function ClientsPanel({
             </div>
             <CardDescription className="flex items-center gap-1.5">
               <Phone size={13} />{" "}
-              <span className="truncate">{r.user.phone || r.user.email || "Numéro non renseigné"}</span>
+              <span className="truncate">
+                {r.user.phone || r.user.email || "Numéro non renseigné"}
+              </span>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

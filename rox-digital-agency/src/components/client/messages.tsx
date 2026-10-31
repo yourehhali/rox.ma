@@ -83,13 +83,13 @@ export function MessagesPanel({ clientId }: { clientId?: string }) {
               >
                 <div
                   className={cn(
-                    "max-w-[80%] rounded-2xl px-3.5 py-2 text-sm",
+                    "max-w-[80%] min-w-0 rounded-2xl px-3.5 py-2 text-sm",
                     m.from === "client"
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-foreground",
                   )}
                 >
-                  <p className="whitespace-pre-wrap leading-relaxed">{m.text}</p>
+                  <p className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</p>
                   <p
                     className={cn(
                       "mt-1 text-[10px]",
@@ -128,8 +128,15 @@ export function MessagesPanel({ clientId }: { clientId?: string }) {
               onBlur={() => stop()}
               placeholder="Écrivez votre message…"
               aria-label="Message"
+              className="min-w-0"
             />
-            <Button type="submit" size="icon" aria-label="Envoyer" disabled={!draft.trim()}>
+            <Button
+              type="submit"
+              size="icon"
+              aria-label="Envoyer"
+              disabled={!draft.trim()}
+              className="shrink-0"
+            >
               <Send size={16} />
             </Button>
           </form>

@@ -38,7 +38,10 @@ export function OtpInput({
   };
 
   const onPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const text = e.clipboardData.getData("text").replace(/[^0-9]/g, "").slice(0, LENGTH);
+    const text = e.clipboardData
+      .getData("text")
+      .replace(/[^0-9]/g, "")
+      .slice(0, LENGTH);
     if (!text) return;
     e.preventDefault();
     onChange(text);

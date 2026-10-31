@@ -63,7 +63,7 @@ export function BoardPanel() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  const activeCard = activeId ? cards.find((c) => c.id === activeId) ?? null : null;
+  const activeCard = activeId ? (cards.find((c) => c.id === activeId) ?? null) : null;
 
   const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
 
@@ -77,16 +77,14 @@ export function BoardPanel() {
 
     // Optimistic: rewrite the cached snapshot immediately.
     const prev = queryClient.getQueryData<BoardCard[]>(keys.board.snapshot());
-    queryClient.setQueryData<BoardCard[]>(
-      keys.board.snapshot(),
-      (old) => (old ?? []).map((c) => (c.id === cardId ? { ...c, stage: over } : c)),
+    queryClient.setQueryData<BoardCard[]>(keys.board.snapshot(), (old) =>
+      (old ?? []).map((c) => (c.id === cardId ? { ...c, stage: over } : c)),
     );
 
     setStage(cardId, over)
       .then((updated) => {
-        queryClient.setQueryData<BoardCard[]>(
-          keys.board.snapshot(),
-          (old) => (old ?? []).map((c) => (c.id === cardId ? updated : c)),
+        queryClient.setQueryData<BoardCard[]>(keys.board.snapshot(), (old) =>
+          (old ?? []).map((c) => (c.id === cardId ? updated : c)),
         );
       })
       .catch((err: unknown) => {
@@ -120,7 +118,12 @@ export function BoardPanel() {
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div className="grid grid-flow-col auto-cols-[minmax(15rem,1fr)] gap-3 overflow-x-auto pb-2">
           {COLUMNS.map((col) => (
-            <Column key={col.id} stage={col.id} label={col.label} cards={byStage.get(col.id) ?? []} />
+            <Column
+              key={col.id}
+              stage={col.id}
+              label={col.label}
+              cards={byStage.get(col.id) ?? []}
+            />
           ))}
         </div>
 
@@ -153,7 +156,9 @@ function Column({ stage, label, cards }: { stage: BoardStage; label: string; car
           <DraggableCard key={c.id} card={c} />
         ))}
         {cards.length === 0 && (
-          <p className="px-2 py-6 text-center text-xs text-muted-foreground/70">Glissez une carte ici</p>
+          <p className="px-2 py-6 text-center text-xs text-muted-foreground/70">
+            Glissez une carte ici
+          </p>
         )}
       </div>
     </div>
@@ -177,13 +182,12 @@ function DraggableCard({ card }: { card: BoardCard }) {
 function BoardCardView({ card, dragging = false }: { card: BoardCard; dragging?: boolean }) {
   return (
     <Card
-      className={cn(
-        "select-none gap-2 p-3 text-sm shadow-sm",
-        dragging && "ring-2 ring-primary",
-      )}
+      className={cn("select-none gap-2 p-3 text-sm shadow-sm", dragging && "ring-2 ring-primary")}
     >
       <p className="font-medium leading-snug">{card.title}</p>
-      <p className="truncate text-xs text-muted-foreground">{card.clientName || "Nouveau prospect"}</p>
+      <p className="truncate text-xs text-muted-foreground">
+        {card.clientName || "Nouveau prospect"}
+      </p>
       <div className="mt-1 flex flex-wrap items-center gap-1.5">
         {card.service && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">

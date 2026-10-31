@@ -3,13 +3,7 @@
 
 import { apiFetch } from "@/lib/api/http";
 
-export type BoardStage =
-  | "LEAD"
-  | "ONBOARDING"
-  | "PRODUCTION"
-  | "REVIEW"
-  | "DELIVERED"
-  | "ARCHIVED";
+export type BoardStage = "LEAD" | "ONBOARDING" | "PRODUCTION" | "REVIEW" | "DELIVERED" | "ARCHIVED";
 
 export type BoardCard = {
   id: string;

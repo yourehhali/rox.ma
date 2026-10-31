@@ -1,4 +1,5 @@
 import { useContext, useMemo, useState, type ReactNode } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,7 @@ const BUDGETS = [
 /** Loose E.164-ish phone check mirrored on the backend. */
 const PHONE_RE = /^\+?[0-9]{8,15}$/;
 
-type FieldKey =
-  "activity" | "services" | "title" | "description" | "phone" | "deadline";
+type FieldKey = "activity" | "services" | "title" | "description" | "phone" | "deadline";
 
 type WizardProps = {
   onComplete: () => void;
@@ -49,6 +49,9 @@ export function OnboardingWizard({
   const clientCtx = useContext(ClientContext);
   const content = useSiteContent();
   const [step, setStep] = useState(0);
+  // Slide direction for the step transition: 1 forward, -1 back.
+  const [dir, setDir] = useState(1);
+  const reduce = useReducedMotion();
   const [submitting, setSubmitting] = useState(false);
 
   const [activity, setActivity] = useState("");
@@ -169,11 +172,13 @@ export function OnboardingWizard({
   const next = () => {
     if (!validateStep()) return;
     setError(null);
+    setDir(1);
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
 
   const back = () => {
     setError(null);
+    setDir(-1);
     setStep((s) => Math.max(s - 1, 0));
   };
 
@@ -236,248 +241,262 @@ export function OnboardingWizard({
       </div>
 
       <div className="p-6">
-        {step === 0 && (
-          <div className="space-y-5">
-            <Field
-              label="Votre activité"
-              hint="Le nom et le type d'activité (ex. restaurant, cabinet, boutique)."
-              error={showErr("activity")}
-            >
-              <Input
-                value={activity}
-                onChange={(e) => {
-                  setActivity(e.target.value);
-                  setError(null);
-                }}
-                onBlur={() => markTouched("activity")}
-                aria-invalid={!!showErr("activity")}
-                className={cn(showErr("activity") && "border-destructive")}
-                placeholder="Ex. Boutique de vêtements à Oujda"
-              />
-            </Field>
-            <Field label="Objectif principal" hint="Ce que vous attendez du projet (optionnel).">
-              <Textarea
-                rows={3}
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-                placeholder="Ex. Avoir un site vitrine moderne et apparaître en premier sur Google à Oujda."
-              />
-            </Field>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Quels services vous intéressent ?</p>
-              <div className="flex flex-wrap gap-2">
-                {catalogue.map((s) => {
-                  const selected = services.includes(s);
-                  return (
+        {/* Steps slide horizontally in the navigation direction */}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: reduce ? 0 : 28 * dir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: reduce ? 0 : -28 * dir }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {step === 0 && (
+              <div className="space-y-5">
+                <Field
+                  label="Votre activité"
+                  hint="Le nom et le type d'activité (ex. restaurant, cabinet, boutique)."
+                  error={showErr("activity")}
+                >
+                  <Input
+                    value={activity}
+                    onChange={(e) => {
+                      setActivity(e.target.value);
+                      setError(null);
+                    }}
+                    onBlur={() => markTouched("activity")}
+                    aria-invalid={!!showErr("activity")}
+                    className={cn(showErr("activity") && "border-destructive")}
+                    placeholder="Ex. Boutique de vêtements à Oujda"
+                  />
+                </Field>
+                <Field
+                  label="Objectif principal"
+                  hint="Ce que vous attendez du projet (optionnel)."
+                >
+                  <Textarea
+                    rows={3}
+                    value={goal}
+                    onChange={(e) => setGoal(e.target.value)}
+                    placeholder="Ex. Avoir un site vitrine moderne et apparaître en premier sur Google à Oujda."
+                  />
+                </Field>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">Quels services vous intéressent ?</p>
+                  <div className="flex flex-wrap gap-2">
+                    {catalogue.map((s) => {
+                      const selected = services.includes(s);
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => toggleService(s)}
+                          aria-pressed={selected}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                            selected
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {selected && <Check size={14} />}
+                          {s}
+                        </button>
+                      );
+                    })}
                     <button
-                      key={s}
                       type="button"
-                      onClick={() => toggleService(s)}
-                      aria-pressed={selected}
+                      onClick={toggleOther}
+                      aria-pressed={otherOpen}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-                        selected
+                        "inline-flex items-center gap-1.5 rounded-full border border-dashed px-3.5 py-1.5 text-sm font-medium transition-colors",
+                        otherOpen
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border text-muted-foreground hover:text-foreground",
                       )}
                     >
-                      {selected && <Check size={14} />}
-                      {s}
+                      {otherOpen ? <Check size={14} /> : <Plus size={14} />}
+                      Autre / précise-le
                     </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={toggleOther}
-                  aria-pressed={otherOpen}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border border-dashed px-3.5 py-1.5 text-sm font-medium transition-colors",
-                    otherOpen
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground",
+                  </div>
+                  {otherOpen && (
+                    <Input
+                      autoFocus
+                      value={otherText}
+                      onChange={(e) => updateOtherText(e.target.value)}
+                      placeholder="Décrivez le service dont vous avez besoin…"
+                      className="mt-2"
+                    />
                   )}
-                >
-                  {otherOpen ? <Check size={14} /> : <Plus size={14} />}
-                  Autre / précise-le
-                </button>
-              </div>
-              {otherOpen && (
-                <Input
-                  autoFocus
-                  value={otherText}
-                  onChange={(e) => updateOtherText(e.target.value)}
-                  placeholder="Décrivez le service dont vous avez besoin…"
-                  className="mt-2"
-                />
-              )}
-              {showErr("services") && (
-                <p className="text-xs font-medium text-destructive">{showErr("services")}</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {step === 1 && (
-          <div className="space-y-4">
-            <Field label="Titre du projet" error={showErr("title")}>
-              <Input
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  setError(null);
-                }}
-                onBlur={() => markTouched("title")}
-                aria-invalid={!!showErr("title")}
-                className={cn(showErr("title") && "border-destructive")}
-                placeholder="Ex. Site vitrine + SEO local"
-              />
-            </Field>
-            <Field
-              label="Description"
-              hint="Parlez-nous du périmètre, des pages souhaitées, de vos références."
-              error={showErr("description")}
-            >
-              <Textarea
-                rows={4}
-                value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value);
-                  setError(null);
-                }}
-                onBlur={() => markTouched("description")}
-                aria-invalid={!!showErr("description")}
-                className={cn(showErr("description") && "border-destructive")}
-                placeholder="Décrivez votre projet…"
-              />
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Budget indicatif">
-                <select
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  {BUDGETS.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field
-                label="Délai souhaité"
-                hint="Optionnel — au moins 5 jours à partir d'aujourd'hui."
-                error={showErr("deadline")}
-              >
-                <Input
-                  type="date"
-                  value={deadline}
-                  min={minDeadlineAttr}
-                  onChange={(e) => {
-                    setDeadline(e.target.value);
-                    setError(null);
-                  }}
-                  onBlur={() => markTouched("deadline")}
-                  aria-invalid={!!showErr("deadline")}
-                  className={cn(showErr("deadline") && "border-destructive")}
-                />
-              </Field>
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Services déjà commandés auparavant (optionnel).
-                </p>
-                <Button type="button" variant="outline" size="sm" onClick={addPast}>
-                  <Plus size={14} /> Ajouter
-                </Button>
-              </div>
-              {pastServices.length > 0 && (
-                <div className="space-y-3">
-                  {pastServices.map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3"
-                    >
-                      <Input
-                        className="min-w-[8rem] flex-1"
-                        placeholder="Service"
-                        value={p.service}
-                        onChange={(e) => updatePast(p.id, { service: e.target.value })}
-                      />
-                      <Input
-                        className="w-24"
-                        placeholder="Année"
-                        value={p.year}
-                        onChange={(e) => updatePast(p.id, { year: e.target.value })}
-                      />
-                      <Input
-                        className="min-w-[8rem] flex-1"
-                        placeholder="Résultat / commentaire"
-                        value={p.outcome}
-                        onChange={(e) => updatePast(p.id, { outcome: e.target.value })}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removePast(p.id)}
-                        aria-label="Retirer"
-                        className="rounded p-1.5 text-muted-foreground transition-colors hover:text-destructive"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  ))}
+                  {showErr("services") && (
+                    <p className="text-xs font-medium text-destructive">{showErr("services")}</p>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        )}
+              </div>
+            )}
 
-        {step === 2 && (
-          <div className="space-y-5">
-            <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-sm">
-              <p className="font-medium">{title || "Votre projet"}</p>
-              <p className="mt-0.5 text-muted-foreground">
-                {services.join(", ") || "—"} · {budget}
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <Field label="Nom">
-                <Input value={defaultName} readOnly disabled />
-              </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field
-                  label="Téléphone WhatsApp"
-                  hint="Le numéro de votre compte — modifiable si besoin."
-                  error={showErr("phone")}
-                >
+            {step === 1 && (
+              <div className="space-y-4">
+                <Field label="Titre du projet" error={showErr("title")}>
                   <Input
-                    value={phone}
+                    value={title}
                     onChange={(e) => {
-                      setPhone(e.target.value);
+                      setTitle(e.target.value);
                       setError(null);
                     }}
-                    onBlur={() => markTouched("phone")}
-                    aria-invalid={!!showErr("phone")}
-                    className={cn(showErr("phone") && "border-destructive")}
-                    placeholder="+212…"
-                    inputMode="tel"
-                    autoComplete="tel"
+                    onBlur={() => markTouched("title")}
+                    aria-invalid={!!showErr("title")}
+                    className={cn(showErr("title") && "border-destructive")}
+                    placeholder="Ex. Site vitrine + SEO local"
                   />
                 </Field>
-                <Field label="Ville" hint="Optionnel.">
-                  <Input
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    placeholder="Oujda"
+                <Field
+                  label="Description"
+                  hint="Parlez-nous du périmètre, des pages souhaitées, de vos références."
+                  error={showErr("description")}
+                >
+                  <Textarea
+                    rows={4}
+                    value={description}
+                    onChange={(e) => {
+                      setDescription(e.target.value);
+                      setError(null);
+                    }}
+                    onBlur={() => markTouched("description")}
+                    aria-invalid={!!showErr("description")}
+                    className={cn(showErr("description") && "border-destructive")}
+                    placeholder="Décrivez votre projet…"
                   />
                 </Field>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Budget indicatif">
+                    <select
+                      value={budget}
+                      onChange={(e) => setBudget(e.target.value)}
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    >
+                      {BUDGETS.map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field
+                    label="Délai souhaité"
+                    hint="Optionnel — au moins 5 jours à partir d'aujourd'hui."
+                    error={showErr("deadline")}
+                  >
+                    <Input
+                      type="date"
+                      value={deadline}
+                      min={minDeadlineAttr}
+                      onChange={(e) => {
+                        setDeadline(e.target.value);
+                        setError(null);
+                      }}
+                      onBlur={() => markTouched("deadline")}
+                      aria-invalid={!!showErr("deadline")}
+                      className={cn(showErr("deadline") && "border-destructive")}
+                    />
+                  </Field>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Services déjà commandés auparavant (optionnel).
+                    </p>
+                    <Button type="button" variant="outline" size="sm" onClick={addPast}>
+                      <Plus size={14} /> Ajouter
+                    </Button>
+                  </div>
+                  {pastServices.length > 0 && (
+                    <div className="space-y-3">
+                      {pastServices.map((p) => (
+                        <div
+                          key={p.id}
+                          className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3"
+                        >
+                          <Input
+                            className="min-w-[8rem] flex-1"
+                            placeholder="Service"
+                            value={p.service}
+                            onChange={(e) => updatePast(p.id, { service: e.target.value })}
+                          />
+                          <Input
+                            className="w-24"
+                            placeholder="Année"
+                            value={p.year}
+                            onChange={(e) => updatePast(p.id, { year: e.target.value })}
+                          />
+                          <Input
+                            className="min-w-[8rem] flex-1"
+                            placeholder="Résultat / commentaire"
+                            value={p.outcome}
+                            onChange={(e) => updatePast(p.id, { outcome: e.target.value })}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removePast(p.id)}
+                            aria-label="Retirer"
+                            className="rounded p-1.5 text-muted-foreground transition-colors hover:text-destructive"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
+
+            {step === 2 && (
+              <div className="space-y-5">
+                <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-sm">
+                  <p className="font-medium">{title || "Votre projet"}</p>
+                  <p className="mt-0.5 text-muted-foreground">
+                    {services.join(", ") || "—"} · {budget}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <Field label="Nom">
+                    <Input value={defaultName} readOnly disabled />
+                  </Field>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field
+                      label="Téléphone WhatsApp"
+                      hint="Le numéro de votre compte — modifiable si besoin."
+                      error={showErr("phone")}
+                    >
+                      <Input
+                        value={phone}
+                        onChange={(e) => {
+                          setPhone(e.target.value);
+                          setError(null);
+                        }}
+                        onBlur={() => markTouched("phone")}
+                        aria-invalid={!!showErr("phone")}
+                        className={cn(showErr("phone") && "border-destructive")}
+                        placeholder="+212…"
+                        inputMode="tel"
+                        autoComplete="tel"
+                      />
+                    </Field>
+                    <Field label="Ville" hint="Optionnel.">
+                      <Input
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        placeholder="Oujda"
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
 
         {error && <p className="mt-4 text-sm font-medium text-destructive">{error}</p>}
       </div>

@@ -13,7 +13,11 @@ import type {
 } from "@/lib/api/types";
 
 export async function getSettings(): Promise<WhatsAppSettings> {
-  return apiFetch<WhatsAppSettings>("/admin/whatsapp/settings", { method: "GET" }, { role: "admin" });
+  return apiFetch<WhatsAppSettings>(
+    "/admin/whatsapp/settings",
+    { method: "GET" },
+    { role: "admin" },
+  );
 }
 
 export async function putSettings(input: WhatsAppSettingsInput): Promise<WhatsAppSettings> {
@@ -41,11 +45,7 @@ export async function startSession(): Promise<WhatsAppStatus> {
 }
 
 export async function getQr(): Promise<WhatsAppQr> {
-  return apiFetch<WhatsAppQr>(
-    "/admin/whatsapp/session/qr",
-    { method: "GET" },
-    { role: "admin" },
-  );
+  return apiFetch<WhatsAppQr>("/admin/whatsapp/session/qr", { method: "GET" }, { role: "admin" });
 }
 
 export async function sendTest(phone: string): Promise<WhatsAppSendResult> {

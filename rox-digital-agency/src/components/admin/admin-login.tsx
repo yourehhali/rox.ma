@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
+import { motion } from "framer-motion";
 import { ArrowLeft, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { Logo } from "@/components/rox/logo";
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,12 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
-
-      <div className="w-full max-w-sm">
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full max-w-sm"
+      >
         <div className="mb-8 flex flex-col items-center text-center">
           <Logo className="h-20 w-20 rounded-xl object-contain" />
           <p className="mt-1 text-sm text-muted-foreground">Accès à l'espace d'administration</p>
@@ -113,7 +118,7 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
             Retour au site public
           </Link>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

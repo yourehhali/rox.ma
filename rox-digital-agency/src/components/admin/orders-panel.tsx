@@ -196,12 +196,12 @@ function ManageOrder({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="flex items-center justify-between gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="ghost" size="sm" onClick={onBack} className="shrink-0">
           <ArrowLeft size={15} /> Retour aux commandes
         </Button>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="font-normal">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          <Badge variant="secondary" className="max-w-[10rem] truncate font-normal">
             {client.name || "Nouveau prospect"}
           </Badge>
           <span
@@ -349,7 +349,7 @@ function ManageOrder({
                   ) : null}
 
                   {uiPrompt?.prompt ? (
-                    <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3 text-xs leading-relaxed text-foreground">
+                    <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-background p-3 text-xs leading-relaxed text-foreground">
                       {uiPrompt.prompt}
                     </pre>
                   ) : (

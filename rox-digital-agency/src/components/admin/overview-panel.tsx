@@ -193,7 +193,9 @@ export function OverviewPanel({
                     const status = orderStatusMeta[order.status];
                     return (
                       <TableRow key={order.id}>
-                        <TableCell className="pl-6 font-medium">{client.name || "Nouveau prospect"}</TableCell>
+                        <TableCell className="pl-6 font-medium">
+                          {client.name || "Nouveau prospect"}
+                        </TableCell>
                         <TableCell className="text-muted-foreground">{order.title}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {currentStepLabel(order)}
