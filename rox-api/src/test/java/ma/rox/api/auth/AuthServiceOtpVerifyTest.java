@@ -20,6 +20,7 @@ import ma.rox.api.security.Role;
 import ma.rox.api.whatsapp.WhatsAppOtpService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
@@ -38,9 +39,10 @@ class AuthServiceOtpVerifyTest {
   private final PortalService portal = mock(PortalService.class);
   private final PhoneOtpService phoneOtp = mock(PhoneOtpService.class);
   private final WhatsAppOtpService whatsapp = mock(WhatsAppOtpService.class);
+  private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
 
   private final AuthService svc =
-      new AuthService(clients, admins, tokens, encoder, jwt, portal, phoneOtp, whatsapp);
+      new AuthService(clients, admins, tokens, encoder, jwt, portal, phoneOtp, whatsapp, events);
 
   private void stubTokens() {
     when(jwt.issueAccess(any(), anyString())).thenReturn("access");
@@ -83,6 +85,9 @@ class AuthServiceOtpVerifyTest {
     assertThat(session.user().phone()).isEqualTo("+33600000000");
     assertThat(session.user().email()).isNull();
     assertThat(session.user().verified()).isTrue();
+
+    // Signup alert for the admin WhatsApp notifier.
+    verify(events).publishEvent(any(ma.rox.api.events.Events.ClientRegistered.class));
   }
 
   @Test
@@ -99,6 +104,7 @@ class AuthServiceOtpVerifyTest {
     AuthDtos.AuthSessionDto session = svc.verifyClientOtp("+212600000000", "123456");
 
     verify(clients, never()).save(any());
+    verify(events, never()).publishEvent(any(ma.rox.api.events.Events.ClientRegistered.class));
     verify(portal).claimLeadsForClientByPhone(existing);
     assertThat(session.user().id()).isEqualTo("c_existing");
     assertThat(session.user().name()).isEqualTo("Alice");

@@ -10,6 +10,7 @@ import ma.rox.api.security.JwtService;
 import ma.rox.api.security.RoxPrincipal;
 import ma.rox.api.security.Role;
 import ma.rox.api.whatsapp.WhatsAppOtpService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,11 +26,13 @@ public class AuthService {
   private final ma.rox.api.portal.PortalService portal;
   private final PhoneOtpService phoneOtp;
   private final WhatsAppOtpService whatsapp;
+  private final ApplicationEventPublisher events;
 
   public AuthService(ClientRepo clients, AdminRepo admins, RefreshTokenRepo tokens,
                      PasswordEncoder encoder, JwtService jwt,
                      ma.rox.api.portal.PortalService portal,
-                     PhoneOtpService phoneOtp, WhatsAppOtpService whatsapp) {
+                     PhoneOtpService phoneOtp, WhatsAppOtpService whatsapp,
+                     ApplicationEventPublisher events) {
     this.clients = clients;
     this.admins = admins;
     this.tokens = tokens;
@@ -38,6 +41,7 @@ public class AuthService {
     this.portal = portal;
     this.phoneOtp = phoneOtp;
     this.whatsapp = whatsapp;
+    this.events = events;
   }
 
   /**
@@ -79,6 +83,8 @@ public class AuthService {
       fresh.setVerified(true);
       fresh.setVerifiedAt(OffsetDateTime.now());
       clients.save(fresh);
+      events.publishEvent(new ma.rox.api.events.Events.ClientRegistered(
+          fresh.getId(), fresh.getName(), fresh.getPhone()));
       return fresh;
     });
 

@@ -42,6 +42,8 @@ type FormState = {
   apiKey: string;
   sessionName: string;
   messageTemplate: string;
+  notifyEnabled: boolean;
+  notifyPhone: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -50,6 +52,8 @@ const EMPTY_FORM: FormState = {
   apiKey: "",
   sessionName: "",
   messageTemplate: "",
+  notifyEnabled: false,
+  notifyPhone: "",
 };
 
 function errMessage(err: unknown, fallback: string): string {
@@ -86,6 +90,8 @@ export function WhatsAppPanel() {
       apiKey: "",
       sessionName: settings.sessionName ?? "",
       messageTemplate: settings.messageTemplate ?? "",
+      notifyEnabled: settings.notifyEnabled,
+      notifyPhone: settings.notifyPhone ?? "",
     });
   }, [settings]);
 
@@ -285,6 +291,69 @@ export function WhatsAppPanel() {
               disabled={saveMut.isPending}
             >
               {saveMut.isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              Enregistrer
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Admin activity notifications — same gateway, own recipient + switch */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Notifications admin (WhatsApp)</CardTitle>
+          <CardDescription>
+            Recevez une alerte sur votre propre numéro à chaque activité du site : nouvelle
+            commande ou demande, inscription client, message, demande d'appel, demande de
+            modification. Nécessite une session OpenWA appairée, indépendante du canal OTP.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+            <Label htmlFor="wa-notify-enabled" className="cursor-pointer">
+              Activer les notifications d'activité
+            </Label>
+            <Switch
+              id="wa-notify-enabled"
+              checked={form.notifyEnabled}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, notifyEnabled: v }))}
+            />
+          </div>
+
+          <Field
+            label="Votre numéro WhatsApp"
+            htmlFor="wa-notify-phone"
+            hint="Format international, ex. +212 6 12 34 56 78."
+          >
+            <Input
+              id="wa-notify-phone"
+              type="tel"
+              autoComplete="off"
+              value={form.notifyPhone}
+              onChange={(e) => setForm((f) => ({ ...f, notifyPhone: e.target.value }))}
+              placeholder="+212 6 12 34 56 78"
+            />
+          </Field>
+
+          {saveMsg && <Banner tone="ok">{saveMsg}</Banner>}
+          {saveErr && <Banner tone="bad">{saveErr}</Banner>}
+
+          <div className="flex justify-end">
+            <Button
+              onClick={() => {
+                setSaveMsg(null);
+                setSaveErr(null);
+                saveMut.mutate({
+                  notifyEnabled: form.notifyEnabled,
+                  ...(form.notifyPhone.trim() ? { notifyPhone: form.notifyPhone.trim() } : {}),
+                });
+              }}
+              disabled={saveMut.isPending || (form.notifyEnabled && !form.notifyPhone.trim())}
+            >
+              {saveMut.isPending ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Save size={15} />
+              )}
               Enregistrer
             </Button>
           </div>

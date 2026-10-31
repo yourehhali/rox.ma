@@ -141,7 +141,8 @@ public class PortalService {
     }
     addEvent(o, "Brief reçu", now);
     orders.save(o);
-    events.publishEvent(new Events.OrderCreated(o.getId(), c.getId(), o.getTitle(), o.getService()));
+    events.publishEvent(new Events.OrderCreated(o.getId(), c.getId(), o.getTitle(), o.getService(),
+        c.getPhone(), o.getDescription()));
     return o;
   }
 
@@ -192,7 +193,8 @@ public class PortalService {
     }
     addEvent(o, "Brief reçu", now);
     orders.save(o);
-    events.publishEvent(new Events.OrderCreated(o.getId(), null, o.getTitle(), o.getService()));
+    events.publishEvent(new Events.OrderCreated(o.getId(), null, o.getTitle(), o.getService(),
+        o.getClientPhone(), o.getDescription()));
     return o;
   }
 

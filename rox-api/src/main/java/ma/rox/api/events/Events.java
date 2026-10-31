@@ -8,7 +8,9 @@ package ma.rox.api.events;
 public final class Events {
   private Events() {}
 
-  public record OrderCreated(String orderId, String clientId, String title, String service) {}
+  public record OrderCreated(String orderId, String clientId, String title, String service,
+                              String phone, String description) {}
+  public record ClientRegistered(String clientId, String name, String phone) {}
   public record PhaseAdvanced(String orderId, String clientId, String phase) {}
   public record StatusChanged(String orderId, String clientId, String status) {}
   public record MessagePosted(String messageId, String orderId, String clientId,

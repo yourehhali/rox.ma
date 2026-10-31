@@ -46,7 +46,7 @@ const sectionMeta: Record<AdminSection, { title: string; description: string }> 
   whatsapp: {
     title: "WhatsApp OTP",
     description:
-      "Configurez la passerelle OpenWA pour envoyer le code de vérification par WhatsApp, en plus de l'e-mail, et appairez l'appareil.",
+      "Configurez la passerelle OpenWA pour envoyer le code de vérification par WhatsApp et recevez une alerte sur votre numéro à chaque activité du site.",
   },
 };
 

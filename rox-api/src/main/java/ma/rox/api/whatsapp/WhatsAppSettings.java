@@ -24,5 +24,8 @@ public class WhatsAppSettings {
   @Column(name = "session_name") private String sessionName;
   @Column(name = "session_id") private String sessionId;
   @Column(name = "message_template") private String messageTemplate;
+  /** Push site-activity alerts to the agency's own WhatsApp number. */
+  @Column(name = "notify_enabled", nullable = false) private boolean notifyEnabled = false;
+  @Column(name = "notify_phone") private String notifyPhone;
   @Column(name = "updated_at", nullable = false) private OffsetDateTime updatedAt;
 }

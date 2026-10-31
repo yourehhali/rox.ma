@@ -33,6 +33,8 @@ public class WhatsAppSettingsService {
   private final String envApiKey;
   private final String envSessionName;
   private final String envTemplate;
+  private final boolean envNotifyEnabled;
+  private final String envNotifyPhone;
 
   public WhatsAppSettingsService(
       WhatsAppSettingsRepo repo,
@@ -41,23 +43,46 @@ public class WhatsAppSettingsService {
       @Value("${rox.whatsapp.api-key:}") String envApiKey,
       @Value("${rox.whatsapp.session-name:rox}") String envSessionName,
       @Value("${rox.whatsapp.message-template:ROX — votre code de vérification : {code} (valide {minutes} min).}")
-          String envTemplate) {
+          String envTemplate,
+      @Value("${rox.whatsapp.notify-enabled:false}") boolean envNotifyEnabled,
+      @Value("${rox.whatsapp.notify-phone:}") String envNotifyPhone) {
     this.repo = repo;
     this.envEnabled = envEnabled;
     this.envBaseUrl = envBaseUrl;
     this.envApiKey = envApiKey;
     this.envSessionName = envSessionName;
     this.envTemplate = envTemplate;
+    this.envNotifyEnabled = envNotifyEnabled;
+    this.envNotifyPhone = envNotifyPhone;
   }
 
   /** Resolved, env-merged settings used by the client/OTP services at runtime. */
   public record Effective(
       boolean enabled, String baseUrl, String apiKey,
-      String sessionName, String sessionId, String messageTemplate) {
+      String sessionName, String sessionId, String messageTemplate,
+      boolean notifyEnabled, String notifyPhone) {
+    /** Test/env-only convenience: notification fields default to off. */
+    public Effective(boolean enabled, String baseUrl, String apiKey,
+                     String sessionName, String sessionId, String messageTemplate) {
+      this(enabled, baseUrl, apiKey, sessionName, sessionId, messageTemplate, false, null);
+    }
+
     public boolean configured() {
       return enabled && baseUrl != null && !baseUrl.isBlank()
           && apiKey != null && !apiKey.isBlank()
           && sessionId != null && !sessionId.isBlank();
+    }
+
+    /**
+     * Site-activity alerts ride the same gateway but have their own switch —
+     * OTP can stay off while the admin still receives notifications. The
+     * session id is resolved lazily by the notifier (create/findBy-name), so
+     * it is not required here.
+     */
+    public boolean canNotify() {
+      return notifyEnabled && baseUrl != null && !baseUrl.isBlank()
+          && apiKey != null && !apiKey.isBlank()
+          && notifyPhone != null && !notifyPhone.isBlank();
     }
   }
 
@@ -71,7 +96,9 @@ public class WhatsAppSettingsService {
         orDefault(s.getApiKey(), envApiKey),
         orDefault(s.getSessionName(), envSessionName),
         s.getSessionId(),
-        orDefault(s.getMessageTemplate(), envTemplate));
+        orDefault(s.getMessageTemplate(), envTemplate),
+        s.isNotifyEnabled() || envNotifyEnabled,
+        orDefault(s.getNotifyPhone(), envNotifyPhone));
   }
 
   /** Admin read — masked key, never the secret. */
@@ -82,6 +109,7 @@ public class WhatsAppSettingsService {
     return new SettingsDto(
         e.enabled(), e.baseUrl(), hasKey ? mask(e.apiKey()) : null, hasKey,
         e.sessionName(), e.sessionId(), e.messageTemplate(),
+        e.notifyEnabled(), e.notifyPhone(),
         ma.rox.api.common.IdGen.iso(load().getUpdatedAt()));
   }
 
@@ -94,6 +122,8 @@ public class WhatsAppSettingsService {
     if (present(in.apiKey()) && !in.apiKey().trim().startsWith("•")) s.setApiKey(in.apiKey().trim());
     if (present(in.sessionName())) s.setSessionName(in.sessionName().trim());
     if (present(in.messageTemplate())) s.setMessageTemplate(in.messageTemplate());
+    if (in.notifyEnabled() != null) s.setNotifyEnabled(in.notifyEnabled());
+    if (present(in.notifyPhone())) s.setNotifyPhone(in.notifyPhone().trim());
     s.setUpdatedAt(nowUtc());
     repo.save(s);
     return view();

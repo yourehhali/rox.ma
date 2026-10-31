@@ -330,6 +330,8 @@ export type WhatsAppSettings = {
   sessionName: string | null;
   sessionId: string | null;
   messageTemplate: string | null;
+  notifyEnabled: boolean;
+  notifyPhone: string | null;
   updatedAt: string | null;
 };
 
@@ -340,6 +342,8 @@ export type WhatsAppSettingsInput = {
   apiKey?: string;
   sessionName?: string;
   messageTemplate?: string;
+  notifyEnabled?: boolean;
+  notifyPhone?: string;
 };
 
 /** Gateway + session health for the status pill. */

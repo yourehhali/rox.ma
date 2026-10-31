@@ -10,7 +10,8 @@ public final class WhatsAppDtos {
   /** Read model — apiKey is masked (never the real secret). */
   public record SettingsDto(
       boolean enabled, String baseUrl, String apiKeyMasked, boolean apiKeySet,
-      String sessionName, String sessionId, String messageTemplate, String updatedAt) {}
+      String sessionName, String sessionId, String messageTemplate,
+      boolean notifyEnabled, String notifyPhone, String updatedAt) {}
 
   /**
    * Write model — every field optional. A blank/masked {@code apiKey} means
@@ -21,7 +22,10 @@ public final class WhatsAppDtos {
       @Size(max = 255) String baseUrl,
       @Size(max = 512) String apiKey,
       @Size(max = 50) String sessionName,
-      @Size(max = 4096) String messageTemplate) {}
+      @Size(max = 4096) String messageTemplate,
+      Boolean notifyEnabled,
+      @jakarta.validation.constraints.Pattern(regexp = "^\\+?[0-9]{8,15}$", message = "Format de téléphone invalide")
+      @Size(max = 20) String notifyPhone) {}
 
   /** Gateway + session health for the status pill. */
   @JsonInclude(JsonInclude.Include.NON_NULL)

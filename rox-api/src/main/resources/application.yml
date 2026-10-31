@@ -73,6 +73,10 @@ rox:
     api-key: ${OPENWA_API_KEY:}
     session-name: ${OPENWA_SESSION:rox}
     message-template: "${OPENWA_OTP_TEMPLATE:ROX — votre code de vérification : {code} (valide {minutes} min).}"
+    # Admin activity notifications: push every site event (order/lead, signup,
+    # client message, booking, change request) to the agency's own WhatsApp.
+    notify-enabled: ${ROX_ADMIN_WHATSAPP_NOTIFY:false}
+    notify-phone: ${ROX_ADMIN_WHATSAPP:}
   rate-limit:
     enabled: ${ROX_RATE_LIMIT_ENABLED:true}
     login-per-minute: ${ROX_RATE_LIMIT_LOGIN_PER_MIN:5}
