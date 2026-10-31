@@ -176,6 +176,18 @@
     background-color: var(--color-primary);
     color: var(--color-primary-foreground);
   }
+
+  /* Hide the increment/decrement arrows on all number inputs (phone, OTP, …) */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
