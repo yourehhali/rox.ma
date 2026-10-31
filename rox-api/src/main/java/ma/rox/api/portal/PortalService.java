@@ -258,6 +258,21 @@ public class PortalService {
     return saved;
   }
 
+  /** Admin clarification of the client's brief — typically after a needs_admin triage. */
+  @Transactional
+  public Order updateBrief(String orderId, String description) {
+    if (description == null || description.isBlank()) {
+      throw ApiException.badRequest("Champ 'description' requis.", List.of(new ma.rox.api.error.ApiError.FieldIssue("description", "required")));
+    }
+    if (description.length() > 4000) {
+      throw ApiException.badRequest("Description trop longue (max 4 000 caractères).", List.of(new ma.rox.api.error.ApiError.FieldIssue("description", "too_long")));
+    }
+    Order o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Commande"));
+    o.setDescription(description.trim());
+    addEvent(o, "Brief précisé par l'admin", nowUtc());
+    return orders.save(o);
+  }
+
   @Transactional
   public Order toggleTask(String orderId, String taskId) {
     Order o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Commande"));

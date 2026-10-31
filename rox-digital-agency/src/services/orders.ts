@@ -40,6 +40,16 @@ export async function regenerateUiPrompt(orderId: string): Promise<AdminOrder> {
   return mapAdminOrder(raw);
 }
 
+/** Admin: save a clarified client brief and re-run the AI triage on it in one shot. */
+export async function updateOrderBrief(orderId: string, description: string): Promise<AdminOrder> {
+  const raw = await apiFetch<RawAdminOrder>(
+    `/orders/${orderId}/brief`,
+    { method: "PATCH", body: { description } },
+    { role: "admin" },
+  );
+  return mapAdminOrder(raw);
+}
+
 export async function createOrder(input: NewOrderInput): Promise<Order> {
   const raw = await apiFetch<RawOrder>(
     "/orders",

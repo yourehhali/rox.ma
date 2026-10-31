@@ -57,6 +57,19 @@ public class OrdersController {
   }
 
   /**
+   * Admin: the brief was clarified (e.g. after a needs_admin verdict and the
+   * WhatsApp follow-up) — store the corrected description and immediately
+   * re-run the AI triage on it. Returns the refreshed admin view of the order.
+   */
+  @PatchMapping("/{id}/brief")
+  public AdminOrderDto patchBrief(@PathVariable String id, @RequestBody Map<String, String> body) {
+    me.requireAdmin();
+    Order o = svc.updateBrief(id, body.get("description"));
+    uiPrompts.triage(o.getId());
+    return svc.toAdminDto(svc.requireOrder(id));
+  }
+
+  /**
    * Public lead capture: no account required. Stores an unclaimed lead keyed by
    * the WhatsApp phone. The client then requests a login code out-of-band
    * (/auth/client/otp) and verifies it to claim this lead onto their new

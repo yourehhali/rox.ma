@@ -1,5 +1,18 @@
 import { useState } from "react";
-import { ArrowLeft, Check, CircleDot, Copy, Inbox, Loader2, Plus, Sparkles, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import {
+  ArrowLeft,
+  Check,
+  CircleDot,
+  Copy,
+  Inbox,
+  Loader2,
+  Pencil,
+  Plus,
+  Save,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { formatDate, orderStatusMeta, formatTime } from "@/components/admin/data";
 import type { AdminPortal } from "@/hooks/use-admin-portal";
@@ -8,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -122,6 +136,10 @@ function ManageOrder({
 }) {
   const [newStep, setNewStep] = useState("");
   const [regenBusy, setRegenBusy] = useState(false);
+  const [briefEdit, setBriefEdit] = useState(false);
+  const [briefText, setBriefText] = useState("");
+  const [briefBusy, setBriefBusy] = useState(false);
+  const reduce = useReducedMotion();
   const found = portal.allOrders.find(({ order }) => order.id === orderId);
   if (!found) return null;
   const { client, order, uiPrompt } = found;
@@ -151,8 +169,33 @@ function ManageOrder({
     }
   };
 
+  // Admin clarifies the client's brief (answers the needs_admin bullets, adds
+  // what the client said on WhatsApp/phone) — saving re-runs the AI triage.
+  const saveBrief = async () => {
+    const text = briefText.trim();
+    if (text.length < 10) {
+      toast.error("Décrivez le brief (au moins 10 caractères).");
+      return;
+    }
+    setBriefBusy(true);
+    try {
+      await actions.updateBrief(orderId, text);
+      toast.success("Brief mis à jour — analyse IA relancée.");
+      setBriefEdit(false);
+    } catch {
+      /* the global mutation toast already surfaced the error */
+    } finally {
+      setBriefBusy(false);
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <motion.div
+      className="space-y-6"
+      initial={reduce ? false : { opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+    >
       <div className="flex items-center justify-between gap-3">
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft size={15} /> Retour aux commandes
@@ -181,7 +224,72 @@ function ManageOrder({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <p className="text-sm text-muted-foreground">{order.description}</p>
+            <AnimatePresence initial={false}>
+              {briefEdit && (
+                <motion.div
+                  key="brief-edit"
+                  initial={reduce ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                  animate={reduce ? { opacity: 1 } : { opacity: 1, height: "auto" }}
+                  exit={reduce ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25, ease: "easeOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <p className="text-xs font-medium text-foreground">
+                      Brief du client — vos modifications relancent l'analyse IA
+                    </p>
+                    <Textarea
+                      rows={5}
+                      maxLength={4000}
+                      value={briefText}
+                      onChange={(e) => setBriefText(e.target.value)}
+                      className="mt-2"
+                    />
+                    <div className="mt-2 flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setBriefEdit(false)}
+                        disabled={briefBusy}
+                      >
+                        Annuler
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={saveBrief}
+                        disabled={briefBusy || !briefText.trim()}
+                      >
+                        {briefBusy ? (
+                          <>
+                            <Loader2 size={13} className="animate-spin" /> Analyse…
+                          </>
+                        ) : (
+                          <>
+                            <Save size={13} /> Enregistrer et relancer
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {!briefEdit && (
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm text-muted-foreground">{order.description}</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0"
+                  onClick={() => {
+                    setBriefText(order.description);
+                    setBriefEdit(true);
+                  }}
+                >
+                  <Pencil size={13} /> Préciser
+                </Button>
+              </div>
+            )}
 
             {/* AI brief triage: verdict on the client's description + a copy-ready
                 UI generation prompt for Lovable / Bolt / v0 / Trae. needs_admin
@@ -191,43 +299,68 @@ function ManageOrder({
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <Sparkles size={15} className="text-primary" /> Analyse IA du brief
                 </div>
-                <span
-                  className={cn(
-                    "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    !uiPrompt
-                      ? "bg-muted text-muted-foreground"
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={!uiPrompt ? "none" : uiPrompt.verdict}
+                    initial={{ opacity: 0, scale: reduce ? 1 : 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: reduce ? 1 : 0.9 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className={cn(
+                      "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
+                      !uiPrompt
+                        ? "bg-muted text-muted-foreground"
+                        : uiPrompt.verdict === "ready"
+                          ? "bg-emerald-500/10 text-emerald-500"
+                          : "bg-amber-500/10 text-amber-500",
+                    )}
+                  >
+                    {!uiPrompt
+                      ? "Non générée"
                       : uiPrompt.verdict === "ready"
-                        ? "bg-emerald-500/10 text-emerald-500"
-                        : "bg-amber-500/10 text-amber-500",
-                  )}
-                >
-                  {!uiPrompt
-                    ? "Non générée"
-                    : uiPrompt.verdict === "ready"
-                      ? "Brief prêt"
-                      : "Intervention requise"}
-                </span>
+                        ? "Brief prêt"
+                        : "Intervention requise"}
+                  </motion.span>
+                </AnimatePresence>
               </div>
 
-              {uiPrompt && uiPrompt.verdict !== "ready" && uiPrompt.missing.length > 0 ? (
-                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
-                  {uiPrompt.missing.map((m) => (
-                    <li key={m}>{m}</li>
-                  ))}
-                </ul>
-              ) : null}
+              {/* Re-mounts on every new verdict/prompt so the card visibly refreshes. */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={`${uiPrompt?.verdict ?? "none"}-${uiPrompt?.at ?? ""}`}
+                  initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  {uiPrompt && uiPrompt.verdict !== "ready" && uiPrompt.missing.length > 0 ? (
+                    <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
+                      {uiPrompt.missing.map((m, i) => (
+                        <motion.li
+                          key={m}
+                          initial={reduce ? { opacity: 0 } : { opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.12 + i * 0.06, duration: 0.3 }}
+                        >
+                          {m}
+                        </motion.li>
+                      ))}
+                    </ul>
+                  ) : null}
 
-              {uiPrompt?.prompt ? (
-                <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3 text-xs leading-relaxed text-foreground">
-                  {uiPrompt.prompt}
-                </pre>
-              ) : (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {!uiPrompt
-                    ? "Génération automatique à l'arrivée de la commande (si l'IA est configurée). Vous pouvez aussi relancer ici."
-                    : "Pas de prompt : brief jugé inexploitable ou quota IA du jour épuisé."}
-                </p>
-              )}
+                  {uiPrompt?.prompt ? (
+                    <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3 text-xs leading-relaxed text-foreground">
+                      {uiPrompt.prompt}
+                    </pre>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {!uiPrompt
+                        ? "Génération automatique à l'arrivée de la commande (si l'IA est configurée). Vous pouvez aussi relancer ici."
+                        : "Pas de prompt : brief trop vague ou inexploitable en l'état. Précisez le brief ci-dessus (réponse du client) puis Régénérer."}
+                    </p>
+                  )}
+                </motion.div>
+              </AnimatePresence>
 
               <div className="mt-3 flex flex-wrap justify-end gap-2">
                 <Button size="sm" variant="outline" onClick={regenerate} disabled={regenBusy}>
@@ -416,6 +549,6 @@ function ManageOrder({
           </ol>
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   );
 }

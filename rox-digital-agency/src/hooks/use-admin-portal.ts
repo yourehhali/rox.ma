@@ -131,6 +131,11 @@ export function useAdminPortal(range: TrafficRange = "12M") {
     mutationFn: (orderId: string) => ordersSvc.regenerateUiPrompt(orderId),
     onSuccess: invalidateAll,
   });
+  const briefMut = useMutation({
+    mutationFn: ({ orderId, description }: { orderId: string; description: string }) =>
+      ordersSvc.updateOrderBrief(orderId, description),
+    onSuccess: invalidateAll,
+  });
   const replyMut = useMutation({
     mutationFn: ({ clientId, text }: { clientId: string; text: string }) =>
       messagesSvc.sendMessage({ text, clientId }, "admin"),
@@ -157,10 +162,22 @@ export function useAdminPortal(range: TrafficRange = "12M") {
       handleRequest: (_clientId: string, orderId: string, requestId: string) =>
         requestMut.mutateAsync({ orderId, requestId }),
       regenerateUiPrompt: (orderId: string) => uiPromptMut.mutateAsync(orderId),
+      updateBrief: (orderId: string, description: string) =>
+        briefMut.mutateAsync({ orderId, description }),
       reply: (clientId: string, text: string) => replyMut.mutateAsync({ clientId, text }),
       confirmBooking: (_clientId: string, bookingId: string) => confirmMut.mutateAsync(bookingId),
     }),
-    [taskMut, addTaskMut, deleteTaskMut, statusMut, requestMut, uiPromptMut, replyMut, confirmMut],
+    [
+      taskMut,
+      addTaskMut,
+      deleteTaskMut,
+      statusMut,
+      requestMut,
+      uiPromptMut,
+      briefMut,
+      replyMut,
+      confirmMut,
+    ],
   );
 
   const stats: AdminStats = statsQuery.data ?? {
