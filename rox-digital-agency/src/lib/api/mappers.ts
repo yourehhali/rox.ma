@@ -164,6 +164,8 @@ type RawPortfolioItem = {
   result: string;
   tags: string[];
   colors: RawColors;
+  thumbnailUrl?: string | null;
+  galleryUrls?: string[] | null;
   featured: boolean;
   published: boolean;
   createdAt: string;
@@ -182,6 +184,8 @@ export function mapPortfolioItem(raw: RawPortfolioItem): PortfolioItem {
     tags: raw.tags ?? [],
     colorA: raw.colors?.a ?? "#E31B23",
     colorB: raw.colors?.b ?? "#F59E0B",
+    thumbnailUrl: raw.thumbnailUrl ?? "",
+    galleryUrls: raw.galleryUrls ?? [],
     featured: !!raw.featured,
     published: !!raw.published,
     createdAt: raw.createdAt,
@@ -199,6 +203,8 @@ export function toPortfolioItemInput(input: PortfolioItemInput): Record<string, 
   if (input["summary"] !== undefined) body["summary"] = input["summary"];
   if (input["result"] !== undefined) body["result"] = input["result"];
   if (input["tags"] !== undefined) body["tags"] = input["tags"];
+  if (input["thumbnailUrl"] !== undefined) body["thumbnailUrl"] = input["thumbnailUrl"];
+  if (input["galleryUrls"] !== undefined) body["galleryUrls"] = input["galleryUrls"];
   if (input["featured"] !== undefined) body["featured"] = input["featured"];
   if (input["published"] !== undefined) body["published"] = input["published"];
   if (input["colorA"] !== undefined || input["colorB"] !== undefined) {

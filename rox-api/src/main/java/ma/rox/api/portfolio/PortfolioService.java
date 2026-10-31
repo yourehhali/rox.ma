@@ -39,6 +39,7 @@ public class PortfolioService {
     if (p.getColorB() == null) p.setColorB("#111827");
     p.setCreatedAt(nowUtc());
     if (p.getTags() == null) p.setTags(new ArrayList<>());
+    if (p.getGalleryUrls() == null) p.setGalleryUrls(new ArrayList<>());
     repo.save(p);
     return toDto(p);
   }
@@ -83,6 +84,16 @@ public class PortfolioService {
       if (in.colors().a() != null) p.setColorA(in.colors().a());
       if (in.colors().b() != null) p.setColorB(in.colors().b());
     }
+    // Media: an explicit empty thumbnail clears it back to the gradient fallback.
+    if (in.thumbnailUrl() != null) {
+      String t = in.thumbnailUrl().trim();
+      p.setThumbnailUrl(t.isEmpty() ? null : t);
+    }
+    if (in.galleryUrls() != null) {
+      List<String> cleaned = in.galleryUrls().stream()
+          .filter(u -> u != null && !u.isBlank()).map(String::trim).toList();
+      p.setGalleryUrls(new ArrayList<>(cleaned));
+    }
     if (in.featured() != null) p.setFeatured(in.featured());
     if (in.published() != null) p.setPublished(in.published());
   }
@@ -93,6 +104,8 @@ public class PortfolioService {
         p.getSummary(), p.getResult(),
         p.getTags() == null ? List.of() : p.getTags(),
         new Colors(p.getColorA(), p.getColorB()),
+        p.getThumbnailUrl(),
+        p.getGalleryUrls() == null ? List.of() : p.getGalleryUrls(),
         p.isFeatured(), p.isPublished(), iso(p.getCreatedAt()));
   }
 }

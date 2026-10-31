@@ -29,6 +29,14 @@ public class PortfolioItem {
 
   @Column(name = "color_a", nullable = false) private String colorA;
   @Column(name = "color_b", nullable = false) private String colorB;
+
+  /** Optional cover image path (e.g. /uploads/portfolio/x.webp). Null => gradient fallback. */
+  @Column(name = "thumbnail_url") private String thumbnailUrl;
+
+  /** Ordered gallery image paths for the single project page. Empty => no gallery section. */
+  @JdbcTypeCode(SqlTypes.ARRAY)
+  @Column(name = "gallery_urls", columnDefinition = "text[]")
+  private List<String> galleryUrls = new ArrayList<>();
   @Column(nullable = false) private boolean featured;
   @Column(nullable = false) private boolean published;
   @Column(name = "created_at", nullable = false) private OffsetDateTime createdAt;

@@ -39,9 +39,14 @@ RUN addgroup -S spring && adduser -S spring -G spring
 
 COPY --from=build --chown=spring:spring /workspace/target/*.jar app.jar
 
+# Writable media root for admin uploads (thumbnail + gallery). Owned by the
+# runtime user before the privilege drop so a mounted volume inherits it.
+RUN mkdir -p /app/uploads && chown -R spring:spring /app/uploads
+
 USER spring:spring
 EXPOSE 8090
 ENV SERVER_PORT=8090
+ENV ROX_UPLOAD_DIR=/app/uploads
 
 # Container-friendly JVM defaults; override via JAVA_OPTS if needed.
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"

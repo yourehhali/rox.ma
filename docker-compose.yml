@@ -63,6 +63,14 @@ services:
       ROX_RATE_LIMIT_LOGIN_PER_MIN: ${ROX_RATE_LIMIT_LOGIN_PER_MIN:-5}
       ROX_RATE_LIMIT_SIGNUP_PER_HOUR: ${ROX_RATE_LIMIT_SIGNUP_PER_HOUR:-2}
       ROX_RATE_LIMIT_CONTACT_PER_MIN: ${ROX_RATE_LIMIT_CONTACT_PER_MIN:-5}
+      # Portfolio media uploads (persisted on the rox-uploads volume below).
+      ROX_UPLOAD_DIR: ${ROX_UPLOAD_DIR:-/app/uploads}
+      ROX_UPLOAD_MAX_BYTES: ${ROX_UPLOAD_MAX_BYTES:-5242880}
+      # Gemini (free tier) — powers the admin "Remplir avec l'IA" helper. Optional.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+    volumes:
+      - rox-uploads:/app/uploads
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${API_PORT:-8090}/portfolio"]
       interval: 20s
@@ -130,6 +138,8 @@ services:
 
 volumes:
   rox-pgdata:
+    driver: local
+  rox-uploads:
     driver: local
   openwa-data:
     driver: local

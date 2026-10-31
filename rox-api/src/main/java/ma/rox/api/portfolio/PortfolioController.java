@@ -3,6 +3,9 @@ package ma.rox.api.portfolio;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
+import ma.rox.api.ai.PortfolioAiDtos.AiDraftRequest;
+import ma.rox.api.ai.PortfolioAiDtos.PortfolioDraftDto;
+import ma.rox.api.ai.PortfolioAiService;
 import ma.rox.api.error.ApiException;
 import ma.rox.api.portfolio.PortfolioDtos.PortfolioItemDto;
 import ma.rox.api.portfolio.PortfolioDtos.PortfolioItemInput;
@@ -17,10 +20,12 @@ public class PortfolioController {
 
   private final PortfolioService svc;
   private final CurrentUser me;
+  private final PortfolioAiService ai;
 
-  public PortfolioController(PortfolioService svc, CurrentUser me) {
+  public PortfolioController(PortfolioService svc, CurrentUser me, PortfolioAiService ai) {
     this.svc = svc;
     this.me = me;
+    this.ai = ai;
   }
 
   /** ?all=true (admin) returns drafts too. */
@@ -32,6 +37,17 @@ public class PortfolioController {
 
   @GetMapping("/{id}")
   public PortfolioItemDto one(@PathVariable String id) { return svc.one(id); }
+
+  /**
+   * AI draft helper: fills the admin form from a short brief via Gemini. Returns a
+   * draft only — nothing is persisted; the admin reviews the fields and an explicit
+   * save (POST/PATCH) writes them.
+   */
+  @PostMapping("/ai-draft")
+  public PortfolioDraftDto aiDraft(@RequestBody AiDraftRequest req) {
+    me.requireAdmin();
+    return ai.draft(req);
+  }
 
   @PostMapping
   public ResponseEntity<PortfolioItemDto> create(@Valid @RequestBody PortfolioItemInput in) {

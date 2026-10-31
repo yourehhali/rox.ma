@@ -63,8 +63,10 @@ public class SecurityConfig {
             .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/actuator/**").permitAll()
             .requestMatchers("/ws/**", "/topic/**", "/queue/**", "/app/**").permitAll()
             .requestMatchers(HttpMethod.GET, "/portfolio", "/portfolio/*").permitAll()
+            // Uploaded media is served straight off disk, publicly readable by path.
+            .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
             .requestMatchers(HttpMethod.GET, "/content/**").permitAll()
-            .requestMatchers(HttpMethod.POST,   "/portfolio", "/content/**").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.POST,   "/portfolio", "/portfolio/media", "/portfolio/ai-draft", "/content/**").hasRole("ADMIN")
             .requestMatchers(HttpMethod.PATCH,  "/portfolio/**", "/content/**").hasRole("ADMIN")
             .requestMatchers(HttpMethod.PUT,    "/content/**").hasRole("ADMIN")
             .requestMatchers(HttpMethod.DELETE, "/portfolio/**", "/content/**").hasRole("ADMIN")

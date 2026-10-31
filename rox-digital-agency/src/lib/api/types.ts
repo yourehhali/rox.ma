@@ -206,6 +206,8 @@ export type PortfolioItem = {
   tags: string[];
   colorA: string;
   colorB: string;
+  thumbnailUrl: string;
+  galleryUrls: string[];
   featured: boolean;
   published: boolean;
   createdAt: string;
@@ -301,13 +303,7 @@ export type TrafficRange = "6M" | "12M" | "YTD";
 // --- Notifications ----------------------------------------------------------
 
 export type NotificationKind =
-  | "message"
-  | "booking"
-  | "order"
-  | "phase"
-  | "stage"
-  | "change_request"
-  | "otp_sent";
+  "message" | "booking" | "order" | "phase" | "stage" | "change_request" | "otp_sent";
 
 export type AppNotification = {
   id: string;

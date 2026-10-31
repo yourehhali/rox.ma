@@ -15,6 +15,7 @@ public final class PortfolioDtos {
   public record PortfolioItemDto(
       String id, String title, String client, String sector, String service, String city,
       String summary, String result, List<String> tags, Colors colors,
+      String thumbnailUrl, List<String> galleryUrls,
       boolean featured, boolean published, String createdAt) {}
 
   public record PortfolioItemInput(
@@ -27,6 +28,8 @@ public final class PortfolioDtos {
       String result,
       List<String> tags,
       @Valid Colors colors,
+      String thumbnailUrl,
+      List<String> galleryUrls,
       Boolean featured,
       Boolean published) {}
 }

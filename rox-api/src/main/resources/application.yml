@@ -32,6 +32,12 @@ spring:
       mail.smtp.connectiontimeout: 5000
       mail.smtp.timeout: 5000
       mail.smtp.writetimeout: 5000
+  servlet:
+    multipart:
+      # Portfolio image uploads (thumbnail + gallery). Kept modest on purpose.
+      enabled: true
+      max-file-size: ${ROX_UPLOAD_MAX_FILE_SIZE:5MB}
+      max-request-size: ${ROX_UPLOAD_MAX_REQUEST_SIZE:12MB}
 
 springdoc:
   api-docs:
@@ -82,3 +88,16 @@ rox:
     login-per-minute: ${ROX_RATE_LIMIT_LOGIN_PER_MIN:5}
     signup-per-hour: ${ROX_RATE_LIMIT_SIGNUP_PER_HOUR:2}
     contact-per-minute: ${ROX_RATE_LIMIT_CONTACT_PER_MIN:5}
+  upload:
+    # On-disk root for admin media uploads, served publicly at public-path.
+    # Mount ROX_UPLOAD_DIR as a volume so files survive container restarts.
+    dir: ${ROX_UPLOAD_DIR:./uploads}
+    public-path: ${ROX_UPLOAD_PUBLIC_PATH:/uploads}
+    max-size-bytes: ${ROX_UPLOAD_MAX_BYTES:5242880}
+  gemini:
+    # Google Gemini (free tier) — powers the admin "Remplir avec l'IA" button that
+    # drafts a portfolio item from a short brief. Key stays server-side; the
+    # endpoint returns a draft for the form and never writes to the DB itself.
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-2.0-flash}
+    base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}

@@ -17,6 +17,8 @@ function toInput(item: PortfolioItem): PortfolioItemInput {
     tags: item.tags,
     colorA: item.colorA,
     colorB: item.colorB,
+    thumbnailUrl: item.thumbnailUrl,
+    galleryUrls: item.galleryUrls,
     featured: item.featured,
     published: item.published,
   };

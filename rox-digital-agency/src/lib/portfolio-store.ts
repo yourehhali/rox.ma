@@ -40,6 +40,8 @@ export function emptyDraft(): PortfolioItem {
     tags: [],
     colorA: "#E31B23",
     colorB: "#F59E0B",
+    thumbnailUrl: "",
+    galleryUrls: [],
     featured: false,
     published: false,
     createdAt: new Date().toISOString(),

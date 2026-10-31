@@ -1,5 +1,19 @@
-import { useState, type ReactNode } from "react";
-import { Eye, EyeOff, Images, Pencil, Plus, Save, Star, Trash2, X } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import {
+  Eye,
+  EyeOff,
+  ImagePlus,
+  Images,
+  Loader2,
+  Pencil,
+  Plus,
+  Save,
+  Sparkles,
+  Star,
+  Trash2,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +22,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { SECTORS, emptyDraft, type PortfolioItem } from "@/lib/portfolio-store";
+import { mediaUrl } from "@/lib/media";
+import { aiDraftPortfolio, uploadPortfolioMedia } from "@/services/portfolio";
 
 export function PortfolioPanel() {
   const { items, ready, actions } = usePortfolio();
   const [draft, setDraft] = useState<PortfolioItem | null>(null);
   const [tagsText, setTagsText] = useState("");
+  const [brief, setBrief] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [thumbBusy, setThumbBusy] = useState(false);
+  const [galleryBusy, setGalleryBusy] = useState(false);
+  const thumbInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const openNew = () => {
     setDraft(emptyDraft());
@@ -40,6 +62,66 @@ export function PortfolioPanel() {
   };
 
   const patch = (p: Partial<PortfolioItem>) => setDraft((d) => (d ? { ...d, ...p } : d));
+
+  // Fill the form from a short brief via Gemini. Only touches local draft state —
+  // nothing is written to the DB until the admin presses "Enregistrer".
+  const runAi = async () => {
+    if (!draft) return;
+    const text = brief.trim();
+    if (!text) {
+      toast.error("Décrivez d'abord le projet dans le champ « Brief ».");
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const d = await aiDraftPortfolio(text, draft.client, draft.sector);
+      patch({
+        title: d.title ?? draft.title,
+        sector: d.sector ?? draft.sector,
+        service: d.service ?? draft.service,
+        city: d.city ?? draft.city,
+        summary: d.summary ?? draft.summary,
+        result: d.result ?? draft.result,
+        colorA: d.colorA ?? draft.colorA,
+        colorB: d.colorB ?? draft.colorB,
+      });
+      if (d.tags?.length) setTagsText(d.tags.join(", "));
+      toast.success("Brouillon IA généré — vérifiez puis enregistrez.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Échec de la génération IA.");
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const onThumbFile = async (file?: File) => {
+    if (!file || !draft) return;
+    setThumbBusy(true);
+    try {
+      patch({ thumbnailUrl: await uploadPortfolioMedia(file) });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Téléversement échoué.");
+    } finally {
+      setThumbBusy(false);
+      if (thumbInputRef.current) thumbInputRef.current.value = "";
+    }
+  };
+
+  const onGalleryFiles = async (files?: FileList | null) => {
+    if (!files || files.length === 0 || !draft) return;
+    setGalleryBusy(true);
+    const added: string[] = [];
+    for (const f of Array.from(files)) {
+      try {
+        added.push(await uploadPortfolioMedia(f));
+      } catch (err) {
+        toast.error(`${f.name}: ${err instanceof Error ? err.message : "échec"}`);
+      }
+    }
+    if (added.length) patch({ galleryUrls: [...draft.galleryUrls, ...added] });
+    setGalleryBusy(false);
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+  };
 
   return (
     <div className="space-y-6">
@@ -76,6 +158,42 @@ export function PortfolioPanel() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Sparkles size={15} className="text-primary" /> Remplir avec l'IA
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Décrivez le projet en quelques mots : l'assistant pré-remplit le formulaire. Rien
+                n'est enregistré tant que vous ne cliquez pas sur « Enregistrer ».
+              </p>
+              <Textarea
+                rows={2}
+                value={brief}
+                onChange={(e) => setBrief(e.target.value)}
+                placeholder="Ex. Restaurant à Oujda, besoin d'un site vitrine rapide avec menu et réservation WhatsApp."
+                className="mt-3"
+              />
+              <div className="mt-3 flex justify-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={runAi}
+                  disabled={aiBusy}
+                >
+                  {aiBusy ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" /> Génération…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={14} /> Générer le brouillon
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Titre du projet">
                 <Input
@@ -188,6 +306,109 @@ export function PortfolioPanel() {
                 />
                 Publier sur le site
               </label>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-sm font-medium">Miniature (optionnelle)</span>
+              <div className="flex items-center gap-3">
+                {draft.thumbnailUrl ? (
+                  <img
+                    src={mediaUrl(draft.thumbnailUrl) ?? ""}
+                    alt=""
+                    className="h-16 w-24 rounded-md border border-border object-cover"
+                  />
+                ) : (
+                  <span
+                    className="h-16 w-24 rounded-md border border-border"
+                    style={{
+                      backgroundImage: `linear-gradient(135deg, ${draft.colorA}, ${draft.colorB})`,
+                    }}
+                  />
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => thumbInputRef.current?.click()}
+                    disabled={thumbBusy}
+                  >
+                    {thumbBusy ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <ImagePlus size={14} />
+                    )}{" "}
+                    {draft.thumbnailUrl ? "Remplacer" : "Téléverser"}
+                  </Button>
+                  {draft.thumbnailUrl ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => patch({ thumbnailUrl: "" })}
+                    >
+                      <X size={14} /> Retirer
+                    </Button>
+                  ) : null}
+                </div>
+                <input
+                  ref={thumbInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => onThumbFile(e.target.files?.[0])}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sans image, la carte garde le dégradé actuel.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-sm font-medium">Galerie ({draft.galleryUrls.length})</span>
+              <div className="flex flex-wrap gap-2">
+                {draft.galleryUrls.map((g, i) => (
+                  <div key={g} className="relative">
+                    <img
+                      src={mediaUrl(g) ?? ""}
+                      alt=""
+                      loading="lazy"
+                      className="h-20 w-28 rounded-md border border-border object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        patch({ galleryUrls: draft.galleryUrls.filter((_, j) => j !== i) })
+                      }
+                      aria-label="Retirer l'image"
+                      className="absolute -right-2 -top-2 rounded-full border border-border bg-background p-0.5 text-muted-foreground hover:text-destructive"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => galleryInputRef.current?.click()}
+                  disabled={galleryBusy}
+                  className="flex h-20 w-28 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-xs text-muted-foreground hover:border-primary/50"
+                >
+                  {galleryBusy ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <ImagePlus size={16} />
+                  )}
+                  Ajouter
+                </button>
+              </div>
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => onGalleryFiles(e.target.files)}
+              />
             </div>
 
             <div className="flex items-center gap-2 rounded-lg border border-border p-3">
