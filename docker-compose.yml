@@ -67,16 +67,26 @@ services:
       # Portfolio media uploads (persisted on the rox-uploads volume below).
       ROX_UPLOAD_DIR: ${ROX_UPLOAD_DIR:-/app/uploads}
       ROX_UPLOAD_MAX_BYTES: ${ROX_UPLOAD_MAX_BYTES:-5242880}
-      # Gemini (free tier) — powers the admin "Remplir avec l'IA" helper. Optional.
-      # DAILY_LIMIT/MAX_OUTPUT_TOKENS keep us under Google's free RPM/TPM/RPD caps.
+      # Gemini (free tier) — quality-first AI provider (portfolio "Remplir avec
+      # l'IA" helper). Optional. DAILY_LIMIT/MAX_OUTPUT_TOKENS keep us under
+      # Google's free RPM/TPM/RPD caps.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
       GEMINI_DAILY_LIMIT: ${GEMINI_DAILY_LIMIT:-50}
       GEMINI_MAX_OUTPUT_TOKENS: ${GEMINI_MAX_OUTPUT_TOKENS:-700}
-      # New-order AI triage (verdict + Lovable/Trae prompt), own daily budget.
+      # New-order AI triage (verdict + Lovable/Trae prompt) — feature flag +
+      # output cap for that long prompt; it runs Cloudflare-first (see below).
       GEMINI_ORDER_PROMPT_ENABLED: ${GEMINI_ORDER_PROMPT_ENABLED:-true}
-      GEMINI_ORDER_DAILY_LIMIT: ${GEMINI_ORDER_DAILY_LIMIT:-20}
       GEMINI_ORDER_MAX_OUTPUT_TOKENS: ${GEMINI_ORDER_MAX_OUTPUT_TOKENS:-1100}
+      # Cloudflare Workers AI (free tier, 10k Neurons/day) — bulk-first provider:
+      # automatic order triage + failover for the portfolio assistant. Optional;
+      # leave empty to stay Gemini-only. Account ID + token: Cloudflare dashboard
+      # → Workers AI (token needs "Workers AI: Read and Write").
+      CLOUDFLARE_AI_ACCOUNT_ID: ${CLOUDFLARE_AI_ACCOUNT_ID:-}
+      CLOUDFLARE_AI_TOKEN: ${CLOUDFLARE_AI_TOKEN:-}
+      # Empty model → the API's own default (@cf/meta/llama-3.1-8b-instruct).
+      CLOUDFLARE_AI_MODEL: ${CLOUDFLARE_AI_MODEL:-}
+      CLOUDFLARE_AI_DAILY_LIMIT: ${CLOUDFLARE_AI_DAILY_LIMIT:-100}
     volumes:
       - rox-uploads:/app/uploads
     healthcheck:

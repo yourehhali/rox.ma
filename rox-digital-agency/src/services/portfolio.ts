@@ -92,15 +92,24 @@ export async function aiDraftPortfolio(
 
 // --- AI free-tier quota ------------------------------------------------------
 
-/** Server-side Gemini budget for the admin UI (see AiQuotaService). */
-export type PortfolioAiQuota = {
-  enabled: boolean;
+/** Daily budget for one provider (Gemini or Cloudflare Workers AI). */
+export type ProviderQuota = {
+  name: string;
+  configured: boolean;
+  model: string;
   dailyLimit: number;
   usedToday: number;
   remainingToday: number;
-  resetInSeconds: number;
   coolingDown: boolean;
   cooldownSeconds: number;
+};
+
+/** Server-side free-tier budgets for the admin UI (see AiQuotaService/LlmRouter). */
+export type PortfolioAiQuota = {
+  enabled: boolean;
+  gemini: ProviderQuota;
+  cloudflare: ProviderQuota;
+  resetInSeconds: number;
 };
 
 export function getAiQuota(): Promise<PortfolioAiQuota> {

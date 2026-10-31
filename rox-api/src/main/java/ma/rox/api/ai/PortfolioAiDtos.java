@@ -20,13 +20,18 @@ public final class PortfolioAiDtos {
       String colorA, String colorB) {}
 
   /**
-   * Free-tier usage budget for the admin UI: how many generations are left today
-   * per scope (portfolio drafts vs order triage) and whether the assistant is
-   * briefly paused after a Google 429. Read-only — it never blocks anything by
-   * itself, the numbers just steer the interface.
+   * Free-tier usage budget for one provider (Gemini or Cloudflare Workers AI):
+   * how many generations are left today and whether it is briefly paused after
+   * its own 429. Read-only — it never blocks anything by itself, the numbers
+   * just steer the interface and {@link LlmRouter}.
    */
+  public record ProviderQuota(
+      String name, boolean configured, String model,
+      int dailyLimit, int usedToday, int remainingToday,
+      boolean coolingDown, long cooldownSeconds) {}
+
+  /** Aggregate view served by {@code GET /portfolio/ai-usage}. */
   public record AiQuotaDto(
-      boolean enabled, int dailyLimit, int usedToday, int remainingToday,
-      int orderDailyLimit, int orderUsedToday, int orderRemainingToday,
-      long resetInSeconds, boolean coolingDown, long cooldownSeconds) {}
+      boolean enabled, ProviderQuota gemini, ProviderQuota cloudflare,
+      long resetInSeconds) {}
 }

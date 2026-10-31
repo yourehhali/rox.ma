@@ -30,24 +30,39 @@ import {
   type PortfolioAiQuota,
 } from "@/services/portfolio";
 
-// Free-tier helpers: one short line under the AI button telling the admin what's
-// left of today's Gemini budget, and whether the assistant is currently paused.
+// Free-tier helpers: one short line under the AI button summarizing today's
+// budget across both free providers (Gemini + Cloudflare — the server fails
+// over between them), and whether at least one can still answer.
+function usableProviders(q: PortfolioAiQuota) {
+  return [q.gemini, q.cloudflare].filter(
+    (p) => p.configured && !p.coolingDown && p.remainingToday > 0,
+  );
+}
+
 function quotaBlocked(q: PortfolioAiQuota | null): boolean {
   if (!q) return false; // unknown — let the server decide
-  return !q.enabled || q.coolingDown || q.remainingToday <= 0;
+  return !q.enabled || usableProviders(q).length === 0;
 }
 
 function quotaLine(q: PortfolioAiQuota | null): string {
   if (!q) return "";
-  if (!q.enabled) return "Assistant IA non configuré côté serveur (GEMINI_API_KEY).";
-  if (q.coolingDown) {
-    return `Pause après limite free-tier Google — réessai dans ~${q.cooldownSeconds} s.`;
-  }
-  if (q.remainingToday <= 0) {
+  if (!q.enabled)
+    return "Assistant IA non configuré côté serveur (GEMINI_API_KEY ou Cloudflare AI).";
+  const parts = [q.gemini, q.cloudflare]
+    .filter((p) => p.configured)
+    .map((p) =>
+      p.coolingDown
+        ? `${p.name}: pause ~${p.cooldownSeconds} s`
+        : p.remainingToday <= 0
+          ? `${p.name}: épuisé`
+          : `${p.name}: ${p.remainingToday}/${p.dailyLimit}`,
+    );
+  const status = parts.join(" · ");
+  if (usableProviders(q).length === 0) {
     const h = Math.max(1, Math.round(q.resetInSeconds / 3600));
-    return `Quota du jour épuisé (${q.dailyLimit}/jour) — retour dans ~${h} h.`;
+    return `Free-tier — ${status} · retour dans ~${h} h.`;
   }
-  return `Free-tier : ${q.remainingToday}/${q.dailyLimit} générations restantes aujourd'hui.`;
+  return `Free-tier — ${status}.`;
 }
 
 export function PortfolioPanel() {

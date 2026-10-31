@@ -96,12 +96,11 @@ rox:
     public-path: ${ROX_UPLOAD_PUBLIC_PATH:/uploads}
     max-size-bytes: ${ROX_UPLOAD_MAX_BYTES:5242880}
   gemini:
-    # Google Gemini (free tier) — powers the admin "Remplir avec l'IA" button that
-    # drafts a portfolio item from a short brief. Key stays server-side; the
-    # endpoint returns a draft for the form and never writes to the DB itself.
-    # Free-tier stewardship: dailyLimit is our own budget (Google also caps RPM/
-    # TPM/RPD per project); maxOutputTokens keeps each generation small so the
-    # quota lasts. Both are surfaced in the admin UI via GET /portfolio/ai-usage.
+    # Google Gemini (free tier) — quality-first provider: portfolio "Remplir avec
+    # l'IA" drafts. Key stays server-side; endpoints return drafts/verdicts and
+    # never expose the key. Free-tier stewardship: dailyLimit is our own budget
+    # (Google also caps RPM/TPM/RPD per project); maxOutputTokens keeps each
+    # generation small so the quota lasts. Surfaced via GET /portfolio/ai-usage.
     api-key: ${GEMINI_API_KEY:}
     model: ${GEMINI_MODEL:gemini-2.0-flash}
     base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
@@ -109,7 +108,18 @@ rox:
     max-output-tokens: ${GEMINI_MAX_OUTPUT_TOKENS:700}
     # Auto brief-triage on every new order: verdict (ready / needs_admin → WhatsApp
     # alert) + a copy-ready Lovable/Trae UI prompt in the admin order view.
-    # Its own daily budget so it never starves the portfolio assistant.
+    # Feature flag; the call itself goes to Cloudflare first (see cloudflare-ai),
+    # Gemini only as fallback. order-max-output-tokens caps that long prompt.
     order-prompt-enabled: ${GEMINI_ORDER_PROMPT_ENABLED:true}
-    order-daily-limit: ${GEMINI_ORDER_DAILY_LIMIT:20}
     order-max-output-tokens: ${GEMINI_ORDER_MAX_OUTPUT_TOKENS:1100}
+  cloudflare-ai:
+    # Cloudflare Workers AI (free tier, 10k Neurons/day, no card) — bulk-first
+    # provider: automatic order triage runs here so the scarcer Gemini budget
+    # stays free for quality writes, and either provider fails over to the other.
+    # Leave account-id/api-token empty to disable; find both in the Cloudflare
+    # dashboard (Workers AI → see API token / Global API token scoped to AI Read).
+    account-id: ${CLOUDFLARE_AI_ACCOUNT_ID:}
+    api-token: ${CLOUDFLARE_AI_TOKEN:}
+    model: ${CLOUDFLARE_AI_MODEL:@cf/meta/llama-3.1-8b-instruct}
+    base-url: ${CLOUDFLARE_AI_BASE_URL:https://api.cloudflare.com/client/v4}
+    daily-limit: ${CLOUDFLARE_AI_DAILY_LIMIT:100}

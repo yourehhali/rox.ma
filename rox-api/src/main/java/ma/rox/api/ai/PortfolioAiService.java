@@ -11,16 +11,17 @@ import ma.rox.api.error.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClientResponseException;
 
 /**
- * Turns a short brief into a draft portfolio item via Gemini. Purely stateless and
- * write-free: it returns a filled form for the admin to review; nothing touches the
- * DB here. The API key is server-side only (see {@link GeminiProperties}).
+ * Turns a short brief into a draft portfolio item via the free-tier AI assistants.
+ * Purely stateless and write-free: it returns a filled form for the admin to
+ * review; nothing touches the DB here. Keys stay server-side (see
+ * {@link GeminiProperties} / {@link CloudflareProperties}).
  *
- * <p>Free-tier stewardship: every call goes through {@link AiQuotaService} — a
- * self-imposed daily budget plus a cooldown after a Google-side 429 — so the key
- * is used to its maximum without ever getting hard-throttled.
+ * <p>Free-tier stewardship: routed through {@link LlmRouter} — quality-first
+ * (Gemini leads, Cloudflare overflows), one provider budget unit per call,
+ * failover on throttle/failure — so the assistants are used to their maximum
+ * without ever getting hard-throttled.
  */
 @Service
 public class PortfolioAiService {
@@ -28,60 +29,33 @@ public class PortfolioAiService {
   private static final Logger log = LoggerFactory.getLogger(PortfolioAiService.class);
   private static final java.util.regex.Pattern HEX =
       java.util.regex.Pattern.compile("#[0-9A-Fa-f]{6}");
-  /** Pause imposed after Google answers 429 — enough to clear an RPM window. */
-  private static final long GOOGLE_THROTTLE_COOLDOWN_SECONDS = 60;
 
-  private final GeminiClient gemini;
+  private final LlmRouter router;
   private final GeminiProperties props;
-  private final AiQuotaService quota;
   private final ObjectMapper mapper = new ObjectMapper();
 
-  public PortfolioAiService(GeminiClient gemini, GeminiProperties props, AiQuotaService quota) {
-    this.gemini = gemini;
+  public PortfolioAiService(LlmRouter router, GeminiProperties props) {
+    this.router = router;
     this.props = props;
-    this.quota = quota;
   }
 
   public PortfolioDraftDto draft(AiDraftRequest req) {
-    if (!props.enabled()) {
-      throw ApiException.badRequest("Assistant IA non configuré (clé GEMINI_API_KEY absente).");
+    if (!router.hasAnyConfigured()) {
+      throw ApiException.badRequest("Assistant IA non configuré (GEMINI_API_KEY ou Cloudflare AI).");
     }
     String brief = req == null || req.brief() == null ? "" : req.brief().trim();
     if (brief.isEmpty()) {
       throw ApiException.badRequest("Décrivez brièvement le projet pour lancer l'IA.");
     }
 
-    // Stay inside the free tier: honour the Google-throttle cooldown, then spend
-    // one unit of our daily budget. The unit is refunded if the call never lands.
-    if (quota.coolingDown()) {
-      throw new ApiException(429, ErrorCode.rate_limited,
-          "L'assistant IA observe une courte pause (limite free-tier atteinte chez Google).");
-    }
-    if (!quota.tryConsume(AiQuotaService.Scope.PORTFOLIO)) {
-      throw new ApiException(429, ErrorCode.rate_limited,
-          "Quota IA du jour atteint (" + props.dailyLimit() + " générations)."
-              + " Réessayez après minuit ou augmentez GEMINI_DAILY_LIMIT.");
-    }
-
     String text;
     try {
-      text = gemini.generate(props.baseUrl(), props.apiKey(), props.model(),
-          prompt(req, brief), true, props.maxOutputTokens());
-    } catch (RestClientResponseException ex) {
-      quota.refund(AiQuotaService.Scope.PORTFOLIO); // Google rejected the call — don't charge our budget
-      if (ex.getStatusCode().value() == 429) {
-        quota.startCooldown(GOOGLE_THROTTLE_COOLDOWN_SECONDS);
-        log.warn("Gemini free-tier 429 — cooldown {}s", GOOGLE_THROTTLE_COOLDOWN_SECONDS);
-        throw new ApiException(429, ErrorCode.rate_limited,
-            "Limite free-tier Gemini atteinte — réessai possible dans "
-                + GOOGLE_THROTTLE_COOLDOWN_SECONDS + " s.");
-      }
-      log.warn("Gemini draft call failed ({}): {}", ex.getStatusCode().value(), ex.getMessage());
-      throw new ApiException(502, ErrorCode.internal_error,
-          "L'assistant IA est momentan\u00e9ment indisponible.");
-    } catch (RuntimeException ex) {
-      quota.refund(AiQuotaService.Scope.PORTFOLIO);
-      log.warn("Gemini draft call failed: {}", ex.getMessage());
+      text = router.generate(LlmRouter.Route.QUALITY_FIRST, prompt(req, brief),
+          props.maxOutputTokens()).text();
+    } catch (LlmRouter.NoCapacityException ex) {
+      throw new ApiException(429, ErrorCode.rate_limited, ex.getMessage());
+    } catch (LlmRouter.LlmUnavailableException ex) {
+      log.warn("Portfolio draft: all providers failed: {}", ex.getMessage());
       throw new ApiException(502, ErrorCode.internal_error,
           "L'assistant IA est momentan\u00e9ment indisponible.");
     }

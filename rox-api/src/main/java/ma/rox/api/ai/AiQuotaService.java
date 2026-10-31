@@ -7,34 +7,46 @@ import java.time.ZoneId;
 import java.util.EnumMap;
 import java.util.Map;
 import ma.rox.api.ai.PortfolioAiDtos.AiQuotaDto;
+import ma.rox.api.ai.PortfolioAiDtos.ProviderQuota;
 import org.springframework.stereotype.Service;
 
 /**
- * In-memory daily budgets for Gemini calls so we stay gracefully inside the free
- * tier (Google limits each project on RPM, TPM and RPD — RPD resets at midnight
- * Pacific; our own smaller budgets reset at server midnight, which is strictly
- * safer). Two scopes keep features from starving each other: PORTFOLIO (manual
- * "Remplir avec l'IA" drafts) and ORDER (automatic brief triage on new orders).
- * Also holds a shared cooldown whenever Google answers 429, so the UI can pause
- * instead of hammering a throttled key. Single api container — same trade-off as
+ * In-memory daily budgets per free-tier provider so we stay gracefully inside
+ * Google's and Cloudflare's limits (both cap each project/account on requests
+ * per minute + per day; Google's RPD resets midnight Pacific, Cloudflare's
+ * neurons midnight UTC — our smaller budgets reset at server midnight, which
+ * is strictly safer). Each provider also has its own cooldown, triggered when
+ * it answers 429, so {@link LlmRouter} can fail over to the other one instead
+ * of hammering a throttled key. Single api container — same trade-off as
  * {@code RateLimitFilter}; move to Redis if we ever scale horizontally.
  */
 @Service
 public class AiQuotaService {
 
-  public enum Scope { PORTFOLIO, ORDER }
+  /** One budget per provider: features fail over between them, never starve one. */
+  public enum Scope { GEMINI, CLOUDFLARE }
 
-  private final GeminiProperties props;
+  private final GeminiProperties geminiProps;
+  private final CloudflareProperties cfProps;
 
   private LocalDate day = LocalDate.now();
   private final Map<Scope, Integer> used = new EnumMap<>(Scope.class);
-  private Instant cooldownUntil = Instant.EPOCH;
+  private final Map<Scope, Instant> cooldownUntil = new EnumMap<>(Scope.class);
 
-  public AiQuotaService(GeminiProperties props) {
-    this.props = props;
+  public AiQuotaService(GeminiProperties geminiProps, CloudflareProperties cfProps) {
+    this.geminiProps = geminiProps;
+    this.cfProps = cfProps;
   }
 
-  /** Take one generation unit if the scope's daily budget still allows it. */
+  public boolean configured(Scope scope) {
+    return scope == Scope.GEMINI ? geminiProps.enabled() : cfProps.enabled();
+  }
+
+  public int limit(Scope scope) {
+    return scope == Scope.GEMINI ? geminiProps.dailyLimit() : cfProps.dailyLimit();
+  }
+
+  /** Take one generation unit if the provider's daily budget still allows it. */
   public synchronized boolean tryConsume(Scope scope) {
     rollover();
     int u = used.getOrDefault(scope, 0);
@@ -43,21 +55,22 @@ public class AiQuotaService {
     return true;
   }
 
-  /** Give a unit back when the outbound call never reached Gemini (network/429/5xx). */
+  /** Give a unit back when the outbound call never landed (network/429/5xx). */
   public synchronized void refund(Scope scope) {
     rollover();
     int u = used.getOrDefault(scope, 0);
     if (u > 0) used.put(scope, u - 1);
   }
 
-  /** Pause the assistant after a Google-side 429 so retries can't pile up. */
-  public synchronized void startCooldown(long seconds) {
+  /** Pause one provider after its own 429 so retries can't pile up. */
+  public synchronized void startCooldown(Scope scope, long seconds) {
     Instant until = Instant.now().plusSeconds(seconds);
-    if (until.isAfter(cooldownUntil)) cooldownUntil = until;
+    Instant cur = cooldownUntil.getOrDefault(scope, Instant.EPOCH);
+    if (until.isAfter(cur)) cooldownUntil.put(scope, until);
   }
 
-  public synchronized boolean coolingDown() {
-    return cooldownUntil.isAfter(Instant.now());
+  public synchronized boolean coolingDown(Scope scope) {
+    return cooldownUntil.getOrDefault(scope, Instant.EPOCH).isAfter(Instant.now());
   }
 
   /** Snapshot consumed by {@code GET /portfolio/ai-usage} to drive the admin UI. */
@@ -66,21 +79,22 @@ public class AiQuotaService {
     Instant nextMidnight =
         LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
     long resetInSeconds = Duration.between(Instant.now(), nextMidnight).getSeconds();
-    boolean cooling = cooldownUntil.isAfter(Instant.now());
-    long cooldownSeconds =
-        cooling ? Math.max(1, Duration.between(Instant.now(), cooldownUntil).getSeconds()) : 0;
-    int pUsed = used.getOrDefault(Scope.PORTFOLIO, 0);
-    int oUsed = used.getOrDefault(Scope.ORDER, 0);
-    int pLimit = props.dailyLimit();
-    int oLimit = props.orderDailyLimit();
-    return new AiQuotaDto(
-        props.enabled(), pLimit, pUsed, Math.max(0, pLimit - pUsed),
-        oLimit, oUsed, Math.max(0, oLimit - oUsed),
-        resetInSeconds, cooling, cooldownSeconds);
+    ProviderQuota gemini = quotaOf(Scope.GEMINI, "Gemini", geminiProps.model());
+    ProviderQuota cloudflare = quotaOf(Scope.CLOUDFLARE, "Cloudflare", cfProps.model());
+    boolean enabled = gemini.configured() || cloudflare.configured();
+    return new AiQuotaDto(enabled, gemini, cloudflare, resetInSeconds);
   }
 
-  private int limit(Scope scope) {
-    return scope == Scope.PORTFOLIO ? props.dailyLimit() : props.orderDailyLimit();
+  private ProviderQuota quotaOf(Scope scope, String name, String model) {
+    int u = used.getOrDefault(scope, 0);
+    int lim = limit(scope);
+    boolean cooling = coolingDown(scope);
+    long cooldownSeconds = cooling
+        ? Math.max(1, Duration.between(Instant.now(),
+            cooldownUntil.getOrDefault(scope, Instant.EPOCH)).getSeconds())
+        : 0;
+    return new ProviderQuota(
+        name, configured(scope), model, lim, u, Math.max(0, lim - u), cooling, cooldownSeconds);
   }
 
   /** Fresh counters once the server day changes. */
@@ -89,6 +103,7 @@ public class AiQuotaService {
     if (!today.equals(day)) {
       day = today;
       used.clear();
+      cooldownUntil.clear();
     }
   }
 }

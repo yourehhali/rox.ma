@@ -16,20 +16,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-import org.springframework.web.client.RestClientResponseException;
 
 /**
- * Auto-triages every new order: asks Gemini to (a) judge whether the client's
- * brief is a real, actionable project or needs admin intervention (vague,
- * incomplete, gibberish/spam), and (b) turn it into a copy-ready UI generation
- * prompt for AI app builders (Lovable, Bolt, v0, Trae). The verdict drives a
- * WhatsApp alert via {@link Events.OrderTriaged}; the prompt shows up in the
- * admin order view in a copy box.
+ * Auto-triages every new order: asks the free-tier AI assistants to (a) judge
+ * whether the client's brief is a real, actionable project or needs admin
+ * intervention (vague, incomplete, gibberish/spam), and (b) turn it into a
+ * copy-ready UI generation prompt for AI app builders (Lovable, Bolt, v0, Trae).
+ * The verdict drives a WhatsApp alert via {@link Events.OrderTriaged}; the
+ * prompt shows up in the admin order view in a copy box.
  *
- * Runs AFTER_COMMIT and async so a slow generation never delays order creation,
- * and spends its own daily budget ({@link AiQuotaService.Scope#ORDER}) so it can
- * never starve the portfolio assistant. Trivially-empty briefs are caught by a
- * cheap heuristic first — no API call wasted on them at all.
+ * Runs AFTER_COMMIT and async so a slow generation never delays order creation.
+ * Bulk-first routing ({@link LlmRouter.Route#BULK_FIRST}) keeps this high-volume
+ * task off the scarcer Gemini budget: Cloudflare answers first and Gemini only
+ * takes over when Cloudflare is unavailable or throttled. Trivially-empty briefs
+ * are caught by a cheap heuristic first — no API call wasted on them at all.
  */
 @Service
 public class UiPromptService {
@@ -37,21 +37,19 @@ public class UiPromptService {
   private static final Logger log = LoggerFactory.getLogger(UiPromptService.class);
   public static final String VERDICT_READY = "ready";
   public static final String VERDICT_NEEDS_ADMIN = "needs_admin";
-  /** Below this, a description is a form-fill, not a brief — skip Gemini entirely. */
+  /** Below this, a description is a form-fill, not a brief — skip the AI call entirely. */
   private static final int MIN_BRIEF_LENGTH = 40;
 
-  private final GeminiClient gemini;
+  private final LlmRouter router;
   private final GeminiProperties props;
-  private final AiQuotaService quota;
   private final OrderRepo orders;
   private final ApplicationEventPublisher events;
   private final ObjectMapper mapper = new ObjectMapper();
 
-  public UiPromptService(GeminiClient gemini, GeminiProperties props, AiQuotaService quota,
+  public UiPromptService(LlmRouter router, GeminiProperties props,
                          OrderRepo orders, ApplicationEventPublisher events) {
-    this.gemini = gemini;
+    this.router = router;
     this.props = props;
-    this.quota = quota;
     this.orders = orders;
     this.events = events;
   }
@@ -70,7 +68,7 @@ public class UiPromptService {
 
   @Transactional
   public void triage(String orderId) {
-    if (!props.orderPromptActive()) return;
+    if (!props.orderPromptEnabled() || !router.hasAnyConfigured()) return;
     Order o = orders.findById(orderId).orElse(null);
     if (o == null) return;
 
@@ -83,29 +81,21 @@ public class UiPromptService {
       return;
     }
 
-    if (quota.coolingDown() || !quota.tryConsume(AiQuotaService.Scope.ORDER)) {
-      log.info("Order triage skipped (quota/cooldown) for {}", orderId);
-      return; // verdict stays NULL → admin can regenerate later from the UI
-    }
-
     String text;
     try {
-      text = gemini.generate(props.baseUrl(), props.apiKey(), props.model(),
-          prompt(o), true, props.orderMaxOutputTokens());
-    } catch (RestClientResponseException ex) {
-      quota.refund(AiQuotaService.Scope.ORDER);
-      if (ex.getStatusCode().value() == 429) quota.startCooldown(60);
-      log.warn("Order triage Gemini call failed ({}) for {}", ex.getStatusCode().value(), orderId);
-      return;
+      text = router.generate(LlmRouter.Route.BULK_FIRST, prompt(o),
+          props.orderMaxOutputTokens()).text();
+    } catch (LlmRouter.NoCapacityException ex) {
+      log.info("Order triage skipped for {}: {}", orderId, ex.getMessage());
+      return; // budgets exhausted / cooldown → verdict stays NULL, admin can regenerate later
     } catch (RuntimeException ex) {
-      quota.refund(AiQuotaService.Scope.ORDER);
-      log.warn("Order triage Gemini call failed for {}: {}", orderId, ex.getMessage());
+      log.warn("Order triage AI call failed for {}: {}", orderId, ex.getMessage());
       return;
     }
 
     JsonNode json = parseJsonObject(text);
     if (json == null) {
-      log.warn("Order triage: unparseable Gemini answer for {}", orderId);
+      log.warn("Order triage: unparseable AI answer for {}", orderId);
       return;
     }
     String verdict = VERDICT_NEEDS_ADMIN.equals(json.path("verdict").asText())
@@ -154,7 +144,7 @@ public class UiPromptService {
     orders.save(o);
   }
 
-  /** Same tolerance as PortfolioAiService: Gemini may wrap the JSON in prose. */
+  /** Same tolerance as PortfolioAiService: the model may wrap the JSON in prose. */
   private JsonNode parseJsonObject(String text) {
     if (text == null || text.isBlank()) return null;
     int start = text.indexOf('{');
